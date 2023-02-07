@@ -297,6 +297,7 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
   int tot_cells = 0;  /* no. of cells used in calculation */
   float tot_u = 0.f;          /* accumulated magnitudes of velocity for each cell */
 
+
   /* loop over the cells in the grid
   ** NB the collision step is called after
   ** the propagate step and so values of interest
