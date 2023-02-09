@@ -220,8 +220,9 @@ int main(int argc, char* argv[])
   return EXIT_SUCCESS;
 }
 
-float timestep(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, 
-  float* tspeed0, float* tspeed1, float* tspeed2, float* tspeed3, float* tspeed4, float* tspeed5,  float* tspeed6, float* tspeed7, float* tspeed8, int* obstacles)
+float timestep(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
+               float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
+               float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles)
 {
   accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles);
   propagate(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8);
@@ -229,8 +230,19 @@ float timestep(const t_param params, float* speed0, float* speed1, float* speed2
   return collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
 }
 
-int accelerate_flow(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, int* obstacles)
+int accelerate_flow(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5,  
+                    float* restrict speed6, float* restrict speed7, float* restrict speed8, int* restrict obstacles)
 {
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+
   /* compute weighting factors */
   float w1 = params.density * params.accel / 9.f;
   float w2 = params.density * params.accel / 36.f;
@@ -263,9 +275,27 @@ int accelerate_flow(const t_param params, float* speed0, float* speed1, float* s
 }
 
 int propagate(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
-float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, float* restrict tspeed4, 
-float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8)
+              float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
+              float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8)
 {
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(tspeed0, 64);
+  __assume_aligned(tspeed1, 64);
+  __assume_aligned(tspeed2, 64);
+  __assume_aligned(tspeed3, 64);
+  __assume_aligned(tspeed4, 64);
+  __assume_aligned(tspeed5, 64);
+  __assume_aligned(tspeed6, 64);
+  __assume_aligned(tspeed7, 64);
+  __assume_aligned(tspeed8, 64);
   /* loop over _all_ cells */
   for (int jj = 0; jj < params.ny; jj++)
   {
@@ -298,9 +328,27 @@ float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, floa
 }
 
 int rebound(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
-float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, float* restrict tspeed4, 
-float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles)
+            float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
+            float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles)
 {
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(tspeed0, 64);
+  __assume_aligned(tspeed1, 64);
+  __assume_aligned(tspeed2, 64);
+  __assume_aligned(tspeed3, 64);
+  __assume_aligned(tspeed4, 64);
+  __assume_aligned(tspeed5, 64);
+  __assume_aligned(tspeed6, 64);
+  __assume_aligned(tspeed7, 64);
+  __assume_aligned(tspeed8, 64);
   /* loop over the cells in the grid */
   for (int jj = 0; jj < params.ny; jj++)
   {
@@ -327,8 +375,9 @@ float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, floa
   return EXIT_SUCCESS;
 }
 
-float collision(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, 
-  float* tspeed0, float* tspeed1, float* tspeed2, float* tspeed3, float* tspeed4, float* tspeed5,  float* tspeed6, float* tspeed7, float* tspeed8, int* obstacles)
+float collision(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
+                float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
+                float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles)
 {
   const float c_sq = 1.f / 3.f; /* square of speed of sound */
   const float w0 = 4.f / 9.f;  /* weighting factor */
@@ -336,6 +385,25 @@ float collision(const t_param params, float* speed0, float* speed1, float* speed
   const float w2 = 1.f / 36.f; /* weighting factor */
   int tot_cells = 0;  /* no. of cells used in calculation */
   float tot_u = 0.f;          /* accumulated magnitudes of velocity for each cell */
+
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(tspeed0, 64);
+  __assume_aligned(tspeed1, 64);
+  __assume_aligned(tspeed2, 64);
+  __assume_aligned(tspeed3, 64);
+  __assume_aligned(tspeed4, 64);
+  __assume_aligned(tspeed5, 64);
+  __assume_aligned(tspeed6, 64);
+  __assume_aligned(tspeed7, 64);
+  __assume_aligned(tspeed8, 64);
 
   /* loop over the cells in the grid
   ** NB the collision step is called after
@@ -755,7 +823,7 @@ int finalise(const t_param* params, float** speed0, float** speed1, float** spee
 
   _mm_free(*tspeed7);
   *tspeed7 = NULL; 
-  
+
   _mm_free(*tspeed8);
   *tspeed8 = NULL;
 
