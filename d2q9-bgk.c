@@ -169,27 +169,6 @@ int main(int argc, char* argv[])
     obstaclefile = argv[2];
   }
 
-  __assume_aligned(speed0, 64);
-  __assume_aligned(speed1, 64);
-  __assume_aligned(speed2, 64);
-  __assume_aligned(speed3, 64);
-  __assume_aligned(speed4, 64);
-  __assume_aligned(speed5, 64);
-  __assume_aligned(speed6, 64);
-  __assume_aligned(speed7, 64);
-  __assume_aligned(speed8, 64);
-  __assume_aligned(tspeed0, 64);
-  __assume_aligned(tspeed1, 64);
-  __assume_aligned(tspeed2, 64);
-  __assume_aligned(tspeed3, 64);
-  __assume_aligned(tspeed4, 64);
-  __assume_aligned(tspeed5, 64);
-  __assume_aligned(tspeed6, 64);
-  __assume_aligned(tspeed7, 64);
-  __assume_aligned(tspeed8, 64);
-  __assume_aligned(obstacles, 64);
-
-
   /* Total/init time starts here: initialise our data structures and load values from file */
   gettimeofday(&timstr, NULL);
   tot_tic = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
@@ -245,6 +224,26 @@ float timestep(const t_param params, float* restrict speed0, float* restrict spe
                float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
                float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles)
 {
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(tspeed0, 64);
+  __assume_aligned(tspeed1, 64);
+  __assume_aligned(tspeed2, 64);
+  __assume_aligned(tspeed3, 64);
+  __assume_aligned(tspeed4, 64);
+  __assume_aligned(tspeed5, 64);
+  __assume_aligned(tspeed6, 64);
+  __assume_aligned(tspeed7, 64);
+  __assume_aligned(tspeed8, 64);
+  __assume_aligned(obstacles, 64);
+
   accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles);
   propagate(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8);
   rebound(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
@@ -272,7 +271,6 @@ int accelerate_flow(const t_param params, float* restrict speed0, float* restric
 
   /* modify the 2nd row of the grid */
   int jj = params.ny - 2;
-
   for (int ii = 0; ii < params.nx; ii++)
   {
     int index = ii + jj*params.nx;
@@ -319,7 +317,7 @@ int propagate(const t_param params, float* restrict speed0, float* restrict spee
   __assume_aligned(tspeed6, 64);
   __assume_aligned(tspeed7, 64);
   __assume_aligned(tspeed8, 64);
-
+  
   /* loop over _all_ cells */
   for (int jj = 0; jj < params.ny; jj++)
   {
