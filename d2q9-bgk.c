@@ -598,28 +598,28 @@ int initialise(const char* paramfile, const char* obstaclefile,
   */
 
   /* main grid */
-  *speed0 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed1 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed2 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed3 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed4 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed5 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed6 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed7 = malloc(sizeof(float) * (params->ny * params->nx));
-  *speed8 = malloc(sizeof(float) * (params->ny * params->nx));
+  *speed0 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed1 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed2 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed3 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed4 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed5 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed6 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed7 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed8 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
 
   //if (*cells_ptr == NULL) die("cannot allocate memory for cells", __LINE__, __FILE__);
 
   /* 'helper' grid, used as scratch space */
-  *tspeed0 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed1 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed2 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed3 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed4 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed5 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed6 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed7 = malloc(sizeof(float) * (params->ny * params->nx));
-  *tspeed8 = malloc(sizeof(float) * (params->ny * params->nx));
+  *tspeed0 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed1 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed2 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed3 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed4 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed5 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed6 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed7 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed8 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
 
   //if (*tmp_cells_ptr == NULL) die("cannot allocate memory for tmp_cells", __LINE__, __FILE__);
 
@@ -705,58 +705,58 @@ int finalise(const t_param* params, float** speed0, float** speed1, float** spee
   /*
   ** free up allocated memory
   */
-  free(*speed0);
+  _mm_free(*speed0);
   *speed0 = NULL;
 
-  free(*speed1);
+  _mm_free(*speed1);
   *speed1 = NULL;
 
-  free(*speed2);
+  _mm_free(*speed2);
   *speed2 = NULL;
 
-  free(*speed3);
+  _mm_free(*speed3);
   *speed3 = NULL;
 
-  free(*speed4);
+  _mm_free(*speed4);
   *speed4 = NULL;
 
-  free(*speed5);
+  _mm_free(*speed5);
   *speed5 = NULL;
 
-  free(*speed6);
+  _mm_free(*speed6);
   *speed6 = NULL;
 
-  free(*speed7);
+  _mm_free(*speed7);
   *speed7 = NULL; 
 
-  free(*speed8);
+  _mm_free(*speed8);
   *speed8 = NULL;
 
-  free(*tspeed0);
+  _mm_free(*tspeed0);
   *tspeed0 = NULL;
 
-  free(*tspeed1);
+  _mm_free(*tspeed1);
   *tspeed1 = NULL;
 
-  free(*tspeed2);
+  _mm_free(*tspeed2);
   *tspeed2 = NULL;
 
-  free(*tspeed3);
+  _mm_free(*tspeed3);
   *tspeed3 = NULL;
 
-  free(*tspeed4);
+  _mm_free(*tspeed4);
   *tspeed4 = NULL;
 
-  free(*tspeed5);
+  _mm_free(*tspeed5);
   *tspeed5 = NULL;
 
-  free(*tspeed6);
+  _mm_free(*tspeed6);
   *tspeed6 = NULL;
 
-  free(*tspeed7);
+  _mm_free(*tspeed7);
   *tspeed7 = NULL; 
-
-  free(*tspeed8);
+  
+  _mm_free(*tspeed8);
   *tspeed8 = NULL;
 
   free(*obstacles_ptr);
