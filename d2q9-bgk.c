@@ -169,6 +169,27 @@ int main(int argc, char* argv[])
     obstaclefile = argv[2];
   }
 
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(tspeed0, 64);
+  __assume_aligned(tspeed1, 64);
+  __assume_aligned(tspeed2, 64);
+  __assume_aligned(tspeed3, 64);
+  __assume_aligned(tspeed4, 64);
+  __assume_aligned(tspeed5, 64);
+  __assume_aligned(tspeed6, 64);
+  __assume_aligned(tspeed7, 64);
+  __assume_aligned(tspeed8, 64);
+  __assume_aligned(obstacles, 64);
+
+
   /* Total/init time starts here: initialise our data structures and load values from file */
   gettimeofday(&timstr, NULL);
   tot_tic = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
@@ -186,7 +207,7 @@ int main(int argc, char* argv[])
   for (int tt = 0; tt < params.maxIters; tt++)
   {
     av_vels[tt] = timestep(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, 
-  tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
+                           tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
 #ifdef DEBUG
     printf("==timestep: %d==\n", tt);
     printf("av velocity: %.12E\n", av_vels[tt]);
@@ -242,6 +263,8 @@ int accelerate_flow(const t_param params, float* restrict speed0, float* restric
   __assume_aligned(speed6, 64);
   __assume_aligned(speed7, 64);
   __assume_aligned(speed8, 64);
+  __assume_aligned(obstacles, 64);  
+
 
   /* compute weighting factors */
   float w1 = params.density * params.accel / 9.f;
@@ -296,6 +319,7 @@ int propagate(const t_param params, float* restrict speed0, float* restrict spee
   __assume_aligned(tspeed6, 64);
   __assume_aligned(tspeed7, 64);
   __assume_aligned(tspeed8, 64);
+
   /* loop over _all_ cells */
   for (int jj = 0; jj < params.ny; jj++)
   {
@@ -349,6 +373,8 @@ int rebound(const t_param params, float* restrict speed0, float* restrict speed1
   __assume_aligned(tspeed6, 64);
   __assume_aligned(tspeed7, 64);
   __assume_aligned(tspeed8, 64);
+  __assume_aligned(obstacles, 64);
+
   /* loop over the cells in the grid */
   for (int jj = 0; jj < params.ny; jj++)
   {
@@ -404,6 +430,7 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
   __assume_aligned(tspeed6, 64);
   __assume_aligned(tspeed7, 64);
   __assume_aligned(tspeed8, 64);
+  __assume_aligned(obstacles, 64);
 
   /* loop over the cells in the grid
   ** NB the collision step is called after
@@ -692,7 +719,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
   //if (*tmp_cells_ptr == NULL) die("cannot allocate memory for tmp_cells", __LINE__, __FILE__);
 
   /* the map of obstacles */
-  *obstacles_ptr = malloc(sizeof(int) * (params->ny * params->nx));
+  *obstacles_ptr = _mm_malloc(sizeof(int) * (params->ny * params->nx), 64);
 
   if (*obstacles_ptr == NULL) die("cannot allocate column memory for obstacles", __LINE__, __FILE__);
 
@@ -761,7 +788,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
   ** allocate space to hold a record of the avarage velocities computed
   ** at each timestep
   */
-  *av_vels_ptr = (float*)malloc(sizeof(float) * params->maxIters);
+  *av_vels_ptr = (float*)_mm_malloc(sizeof(float) * params->maxIters, 64);
 
   return EXIT_SUCCESS;
 }
@@ -827,10 +854,10 @@ int finalise(const t_param* params, float** speed0, float** speed1, float** spee
   _mm_free(*tspeed8);
   *tspeed8 = NULL;
 
-  free(*obstacles_ptr);
+  _mm_free(*obstacles_ptr);
   *obstacles_ptr = NULL;
 
-  free(*av_vels_ptr);
+  _mm_free(*av_vels_ptr);
   *av_vels_ptr = NULL;
 
   return EXIT_SUCCESS;
@@ -847,6 +874,16 @@ int finalise(const t_param* params, float** speed0, float** speed1, float** spee
 float total_density(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8)
 {
   float total = 0.f;  /* accumulator */
+
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
 
   for (int jj = 0; jj < params.ny; jj++)
   {
@@ -878,6 +915,18 @@ int write_values(const t_param params, float* speed0, float* speed1, float* spee
   float u_x;                   /* x-component of velocity in grid cell */
   float u_y;                   /* y-component of velocity in grid cell */
   float u;                     /* norm--root of summed squares--of u_x and u_y */
+
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(obstacles, 64);
+  __assume_aligned(av_vels, 64);
 
   fp = fopen(FINALSTATEFILE, "w");
 
