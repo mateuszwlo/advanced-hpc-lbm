@@ -246,7 +246,7 @@ float timestep(const t_param params, float* restrict speed0, float* restrict spe
 
   accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles);
   propagate(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8);
-  rebound(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
+  //rebound(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
   return collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
 }
 
@@ -266,11 +266,11 @@ int accelerate_flow(const t_param params, float* restrict speed0, float* restric
 
 
   /* compute weighting factors */
-  float w1 = params.density * params.accel / 9.f;
-  float w2 = params.density * params.accel / 36.f;
+  const float w1 = params.density * params.accel / 9.f;
+  const float w2 = params.density * params.accel / 36.f;
 
   /* modify the 2nd row of the grid */
-  int jj = params.ny - 2;
+  const int jj = params.ny - 2;
   for (int ii = 0; ii < params.nx; ii++)
   {
     int index = ii + jj*params.nx;
@@ -561,6 +561,16 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
         tot_u += sqrtf((u_x * u_x) + (u_y * u_y));
         /* increase counter of inspected cells */
         ++tot_cells;
+      }
+      else{
+        speed1[index] = tspeed3[index];
+        speed2[index] = tspeed4[index];
+        speed3[index] = tspeed1[index];
+        speed4[index] = tspeed2[index];
+        speed5[index] = tspeed7[index];
+        speed6[index] = tspeed8[index];
+        speed7[index] = tspeed5[index];
+        speed8[index] = tspeed6[index];
       }
     }
   }
