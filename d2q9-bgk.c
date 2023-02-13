@@ -321,8 +321,22 @@ int propagate(const t_param params, float* restrict speed0, float* restrict spee
   /* loop over _all_ cells */
   for (int jj = 0; jj < params.ny; jj++)
   {
+    __assume(params.ny % 2 == 0);
+    __assume(params.ny % 4 == 0);
+    __assume(params.ny % 8 == 0);
+    __assume(params.ny % 16 == 0);
+    __assume(params.ny % 32 == 0);
+    __assume(params.ny % 64 == 0);
+    __assume(params.ny % 128 == 0);
     for (int ii = 0; ii < params.nx; ii++)
     {
+      __assume(params.nx % 2 == 0);
+      __assume(params.nx % 4 == 0);
+      __assume(params.nx % 8 == 0);
+      __assume(params.nx % 16 == 0);
+      __assume(params.nx % 32 == 0);
+      __assume(params.nx % 64 == 0);
+      __assume(params.nx % 128 == 0);
       /* determine indices of axis-direction neighbours
       ** respecting periodic boundary conditions (wrap around) */
       int y_n = (jj + 1) % params.ny;
@@ -436,8 +450,23 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
   ** are in the scratch-space grid */
   for (int jj = 0; jj < params.ny; jj++)
   {
+    __assume(params.ny % 2 == 0);
+    __assume(params.ny % 4 == 0);
+    __assume(params.ny % 8 == 0);
+    __assume(params.ny % 16 == 0);
+    __assume(params.ny % 32 == 0);
+    __assume(params.ny % 64 == 0);
+    __assume(params.ny % 128 == 0);
     for (int ii = 0; ii < params.nx; ii++)
     {
+      __assume(params.nx % 2 == 0);
+      __assume(params.nx % 4 == 0);
+      __assume(params.nx % 8 == 0);
+      __assume(params.nx % 16 == 0);
+      __assume(params.nx % 32 == 0);
+      __assume(params.nx % 64 == 0);
+      __assume(params.nx % 128 == 0);
+
       int index = ii + jj*params.nx;
       /* don't consider occupied cells */
       if (!obstacles[ii + jj*params.nx])
