@@ -242,10 +242,14 @@ int propagate(const t_param params, t_speed* cells)
       int index = offset + ii;
       /* determine indices of axis-direction neighbours
       ** respecting periodic boundary conditions (wrap around) */
-      int y_n = (jj + 1) % params.ny;
-      int x_e = (ii + 1) % params.nx;
-      int y_s = (jj == 0) ? (jj + params.ny - 1) : (jj - 1);
-      int x_w = (ii == 0) ? (ii + params.nx - 1) : (ii - 1);
+      int y_n = jj + 1;
+      if(y_n == params.ny) y_n = 0;
+      int x_e = ii + 1;
+      if(x_e == params.nx) x_e = 0;
+      int y_s = jj - 1;
+      if(y_s == -1) y_s = params.ny - 1;
+      int x_w = ii - 1;
+      if(x_w == -1) x_w = params.nx - 1;
       /* propagate densities from neighbouring cells, following
       ** appropriate directions of travel and writing into
       ** scratch space grid */
