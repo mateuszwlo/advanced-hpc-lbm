@@ -3,7 +3,7 @@
 EXE=d2q9-bgk
 
 CC=icc
-CFLAGS= -std=c99 -Wall -Ofast -mtune=native -xAVX -qopt-report=5 -qopt-report-phase=vec
+CFLAGS= -std=c99 -Wall -Ofast -mtune=native -xAVX -qopenmp
 LIBS = -lm
 
 FINAL_STATE_FILE=./final_state.dat
