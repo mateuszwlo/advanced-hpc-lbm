@@ -187,6 +187,43 @@ int main(int argc, char* argv[])
   {
     av_vels[tt] = timestep(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, 
                            tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
+
+    float* tmp = speed0;
+    speed0 = tspeed0;
+    tspeed0 = tmp;
+
+    tmp = speed1;
+    speed1 = tspeed1;
+    tspeed1 = tmp;
+
+    tmp = speed2;
+    speed2 = tspeed2;
+    tspeed2 = tmp;
+
+    tmp = speed3;
+    speed3 = tspeed3;
+    tspeed3 = tmp;
+
+    tmp = speed4;
+    speed4 = tspeed4;
+    tspeed4 = tmp;
+
+    tmp = speed5;
+    speed5 = tspeed5;
+    tspeed5 = tmp;
+
+    tmp = speed6;
+    speed6 = tspeed6;
+    tspeed6 = tmp;
+
+    tmp = speed7;
+    speed7 = tspeed7;
+    tspeed7 = tmp;
+
+    tmp = speed8;
+    speed8 = tspeed8;
+    tspeed8 = tmp;
+
 #ifdef DEBUG
     printf("==timestep: %d==\n", tt);
     printf("av velocity: %.12E\n", av_vels[tt]);
@@ -245,7 +282,7 @@ float timestep(const t_param params, float* restrict speed0, float* restrict spe
   __assume_aligned(obstacles, 64);
 
   accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles);
-  propagate(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8);
+  //propagate(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8);
   //rebound(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
   return collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles);
 }
@@ -472,37 +509,34 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
       __assume(params.ny % 128 == 0);
 
       int index = ii + jj*params.nx;
+      int y_n = jj + 1;
+      if(y_n == params.ny) y_n = 0;
+      int x_e = ii + 1;
+      if(x_e == params.nx) x_e = 0;
+      int y_s = jj - 1;
+      if(y_s == -1) y_s = params.ny - 1;
+      int x_w = ii - 1;
+      if(x_w == -1) x_w = params.nx - 1;
+
+      float s0 = speed0[ii + jj*params.nx]; /* central cell, no movement */
+      float s1 = speed1[x_w + jj*params.nx]; /* east */
+      float s2 = speed2[ii + y_s*params.nx]; /* north */
+      float s3 = speed3[x_e + jj*params.nx]; /* west */
+      float s4 = speed4[ii + y_n*params.nx]; /* south */
+      float s5 = speed5[x_w + y_s*params.nx]; /* north-east */
+      float s6 = speed6[x_e + y_s*params.nx]; /* north-west */
+      float s7 = speed7[x_e + y_n*params.nx]; /* south-west */
+      float s8 = speed8[x_w + y_n*params.nx]; /* south-east */
       /* don't consider occupied cells */
-      if (!obstacles[ii + jj*params.nx])
+      if (!obstacles[index])
       {
         /* compute local density total */
-        float local_density = tspeed0[index] 
-                      + tspeed1[index] 
-                      + tspeed2[index] 
-                      + tspeed3[index] 
-                      + tspeed4[index] 
-                      + tspeed5[index] 
-                      + tspeed6[index]
-                      + tspeed7[index]
-                      + tspeed8[index];
+        float local_density = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8;
 
         /* compute x velocity component */
-        float u_x = (tspeed1[index]
-               + tspeed5[index]
-               + tspeed8[index]
-               - (tspeed3[index]
-                  + tspeed6[index]
-                  + tspeed7[index]))
-              / local_density;
-
+        float u_x = (s1 + s5 + s8 - (s3 + s6  + s7)) / local_density;
         /* compute y velocity component */
-        float u_y = (tspeed2[index]
-               + tspeed5[index]
-               + tspeed6[index]
-               - (tspeed4[index]
-                  + tspeed7[index]
-                  + tspeed8[index]))
-              / local_density;
+        float u_y = (s2 + s5 + s6 - (s4  + s7 + s8)) / local_density;
 
         /* velocity squared */
         float u_sq = u_x * u_x + u_y * u_y;
@@ -536,58 +570,57 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
         d_equ[8] = tmp - tmp1;
 
         /* relaxation step */
-        float temp = tspeed0[index] + params.omega * (d_equ[0] - tspeed0[index]);
-        speed0[index] = temp;
+        float temp = s0 + params.omega * (d_equ[0] - s0);
+        tspeed0[index] = temp;
         local_density = temp;
 
-        temp = tspeed1[index] + params.omega * (d_equ[1] - tspeed1[index]);
-        speed1[index] = temp;
+        temp = s1 + params.omega * (d_equ[1] - s1);
+        tspeed1[index] = temp;
         local_density += temp;
 
-        temp = tspeed2[index] + params.omega * (d_equ[2] - tspeed2[index]);
-        speed2[index] = temp;
+        temp = s2 + params.omega * (d_equ[2] - s2);
+        tspeed2[index] = temp;
         local_density += temp;
 
-        temp = tspeed3[index] + params.omega * (d_equ[3] - tspeed3[index]);
-        speed3[index] = temp;
+        temp = s3 + params.omega * (d_equ[3] - s3);
+        tspeed3[index] = temp;
         local_density += temp;
 
-        temp = tspeed4[index] + params.omega * (d_equ[4] - tspeed4[index]);
-        speed4[index] = temp;
+        temp = s4 + params.omega * (d_equ[4] - s4);
+        tspeed4[index] = temp;
         local_density += temp;
 
-        temp = tspeed5[index] + params.omega * (d_equ[5] - tspeed5[index]);
-        speed5[index] = temp;
+        temp = s5 + params.omega * (d_equ[5] - s5);
+        tspeed5[index] = temp;
         local_density += temp;
 
-        temp = tspeed6[index] + params.omega * (d_equ[6] - tspeed6[index]);
-        speed6[index] = temp;
+        temp = s6 + params.omega * (d_equ[6] - s6);
+        tspeed6[index] = temp;
         local_density += temp;
 
-        temp = tspeed7[index] + params.omega * (d_equ[7] - tspeed7[index]);
-        speed7[index] = temp;
+        temp = s7 + params.omega * (d_equ[7] - s7);
+        tspeed7[index] = temp;
         local_density += temp;
 
-        temp = tspeed8[index] + params.omega * (d_equ[8] - tspeed8[index]);
-        speed8[index] = temp;
+        temp = s8 + params.omega * (d_equ[8] - s8);
+        tspeed8[index] = temp;
         local_density += temp;
-
 
         /* compute x velocity component */
-        u_x = (speed1[index]
-               + speed5[index]
-               + speed8[index]
-               - (speed3[index]
-                  + speed6[index]
-                  + speed7[index]))
+        u_x = (tspeed1[index]
+               + tspeed5[index]
+               + tspeed8[index]
+               - (tspeed3[index]
+                  + tspeed6[index]
+                  + tspeed7[index]))
               / local_density;
         /* compute y velocity component */
-        u_y = (speed2[index]
-               + speed5[index]
-               + speed6[index]
-               - (speed4[index]
-                  + speed7[index]
-                  + speed8[index]))
+        u_y = (tspeed2[index]
+               + tspeed5[index]
+               + tspeed6[index]
+               - (tspeed4[index]
+                  + tspeed7[index]
+                  + tspeed8[index]))
               / local_density;
 
         /* accumulate the norm of x- and y- velocity components */
@@ -596,14 +629,14 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
         ++tot_cells;
       }
       else{
-        speed1[index] = tspeed3[index];
-        speed2[index] = tspeed4[index];
-        speed3[index] = tspeed1[index];
-        speed4[index] = tspeed2[index];
-        speed5[index] = tspeed7[index];
-        speed6[index] = tspeed8[index];
-        speed7[index] = tspeed5[index];
-        speed8[index] = tspeed6[index];
+        tspeed1[index] = s3;
+        tspeed2[index] = s4;
+        tspeed3[index] = s1;
+        tspeed4[index] = s2;
+        tspeed5[index] = s7;
+        tspeed6[index] = s8;
+        tspeed7[index] = s5;
+        tspeed8[index] = s6;
       }
     }
   }
