@@ -283,32 +283,31 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
 
         /* velocity squared */
         float u_sq = u_x * u_x + u_y * u_y;
-        float neg = u_sq / (2.f * c_sq);
-        float c_sq2 = (2.f * c_sq * c_sq);
+        float neg = u_sq * 3.f / 2.f;
+        float c_sq2 = 2.f / 9.f;
 
         float d_equ[NSPEEDS];
 
         /* zero velocity density: weight w0 */
-        d_equ[0] = w0 * local_density
-                   * (1.f - u_sq / (2.f * c_sq));
+        d_equ[0] = w0 * local_density * (1.f - neg);
         /* axis speeds: weight w1 */
-        float tmp = w1 * local_density * (1.f + ((u_x * u_x) / c_sq2) - neg);
-        float tmp1 = w1 * local_density * u_x / c_sq;
+        float tmp = w1 * local_density * (1.f + ((u_x * u_x) * 9 / 2) - neg);
+        float tmp1 = w1 * local_density * u_x * 3;
         d_equ[1] = tmp + tmp1;
         d_equ[3] = tmp - tmp1;
 
-        tmp = w1 * local_density * (1.f + ((u_y * u_y) / c_sq2) - neg);
-        tmp1 = w1 * local_density * u_y / c_sq;
+        tmp = w1 * local_density * (1.f + ((u_y * u_y) * 9 / 2) - neg);
+        tmp1 = w1 * local_density * u_y * 3;
         d_equ[2] = tmp + tmp1;
         d_equ[4] = tmp - tmp1;
         /* diagonal speeds: weight w2 */
-        tmp = w2 * local_density * (1.f + ((u_x + u_y) * (u_x + u_y)) / c_sq2- neg);
-        tmp1 = w2 * local_density * (u_x + u_y) / c_sq;
+        tmp = w2 * local_density * (1.f + ((u_x + u_y) * (u_x + u_y)) * 9 / 2 - neg);
+        tmp1 = w2 * local_density * (u_x + u_y) * 3;
         d_equ[5] = tmp + tmp1;
         d_equ[7] = tmp - tmp1;
 
-        tmp = w2 * local_density * (1.f + ((- u_x + u_y) * (- u_x + u_y)) / c_sq2- neg);
-        tmp1 = w2 * local_density *  (- u_x + u_y) / c_sq;
+        tmp = w2 * local_density * (1.f + ((- u_x + u_y) * (- u_x + u_y)) * 9 / 2 - neg);
+        tmp1 = w2 * local_density *  (- u_x + u_y) * 3;
         d_equ[6] = tmp + tmp1;
         d_equ[8] = tmp - tmp1;
 
