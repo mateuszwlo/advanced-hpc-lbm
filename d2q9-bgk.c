@@ -277,74 +277,63 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
         float local_density = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8;
 
         /* compute x velocity component */
-        float u_x = (s1 + s5 + s8 - (s3 + s6  + s7)) / local_density;
+        float u_x = (s1 + s5 + s8 - (s3 + s6  + s7)) / local_density * 3;
         /* compute y velocity component */
-        float u_y = (s2 + s5 + s6 - (s4  + s7 + s8)) / local_density;
+        float u_y = (s2 + s5 + s6 - (s4  + s7 + s8)) / local_density * 3;
 
         /* velocity squared */
         float u_sq = u_x * u_x + u_y * u_y;
-        float neg = u_sq * 3.f / 2.f;
-        float c_sq2 = 2.f / 9.f;
-
-        float d_equ[NSPEEDS];
+        float u_xy = u_x + u_y;
+        float u_yx = u_y - u_x;
+        float neg = 1 - (u_sq / 6);
 
         /* zero velocity density: weight w0 */
-        d_equ[0] = w0 * local_density * (1.f - neg);
         /* axis speeds: weight w1 */
-        float tmp = w1 * local_density * (1.f + ((u_x * u_x) * 9 / 2) - neg);
-        float tmp1 = w1 * local_density * u_x * 3;
-        d_equ[1] = tmp + tmp1;
-        d_equ[3] = tmp - tmp1;
-
-        tmp = w1 * local_density * (1.f + ((u_y * u_y) * 9 / 2) - neg);
-        tmp1 = w1 * local_density * u_y * 3;
-        d_equ[2] = tmp + tmp1;
-        d_equ[4] = tmp - tmp1;
+        float d1 = w1 * local_density * ((u_x * u_x / 2) + u_x + neg);
+        float d2 = w1 * local_density * ((u_y * u_y / 2) + u_y + neg);
+        float d3 = w1 * local_density * ((u_x * u_x / 2) - u_x + neg);
+        float d4 = w1 * local_density * ((u_y * u_y / 2) - u_y + neg);
         /* diagonal speeds: weight w2 */
-        tmp = w2 * local_density * (1.f + ((u_x + u_y) * (u_x + u_y)) * 9 / 2 - neg);
-        tmp1 = w2 * local_density * (u_x + u_y) * 3;
-        d_equ[5] = tmp + tmp1;
-        d_equ[7] = tmp - tmp1;
 
-        tmp = w2 * local_density * (1.f + ((- u_x + u_y) * (- u_x + u_y)) * 9 / 2 - neg);
-        tmp1 = w2 * local_density *  (- u_x + u_y) * 3;
-        d_equ[6] = tmp + tmp1;
-        d_equ[8] = tmp - tmp1;
+        float d5 = w2 * local_density * ((u_xy * u_xy / 2) + u_xy + neg);
+        float d6 = w2 * local_density * ((u_yx * u_yx / 2) + u_yx + neg);
+        float d7 = w2 * local_density * ((u_xy * u_xy / 2) - u_xy + neg);
+        float d8 = w2 * local_density * ((u_yx * u_yx / 2) - u_yx + neg);
 
         /* relaxation step */
-        float temp = s0 + params.omega * (d_equ[0] - s0);
+        float temp = s0 + params.omega * ((w0 * local_density * neg) - s0);
         tmp_cells[index].speeds[0] = temp;
         local_density = temp;
 
-        temp = s1 + params.omega * (d_equ[1] - s1);
+        temp = s1 + (params.omega * (d1 - s1));
         tmp_cells[index].speeds[1] = temp;
         local_density += temp;
 
-        temp = s2 + params.omega * (d_equ[2] - s2);
+        temp = s2 + params.omega * (d2 - s2);
         tmp_cells[index].speeds[2] = temp;
         local_density += temp;
 
-        temp = s3 + params.omega * (d_equ[3] - s3);
+        temp = s3 + params.omega * (d3 - s3);
         tmp_cells[index].speeds[3] = temp;
         local_density += temp;
 
-        temp = s4 + params.omega * (d_equ[4] - s4);
+        temp = s4 + params.omega * (d4 - s4);
         tmp_cells[index].speeds[4] = temp;
         local_density += temp;
 
-        temp = s5 + params.omega * (d_equ[5] - s5);
+        temp = s5 + params.omega * (d5 - s5);
         tmp_cells[index].speeds[5] = temp;
         local_density += temp;
 
-        temp = s6 + params.omega * (d_equ[6] - s6);
+        temp = s6 + params.omega * (d6 - s6);
         tmp_cells[index].speeds[6] = temp;
         local_density += temp;
 
-        temp = s7 + params.omega * (d_equ[7] - s7);
+        temp = s7 + params.omega * (d7 - s7);
         tmp_cells[index].speeds[7] = temp;
         local_density += temp;
 
-        temp = s8 + params.omega * (d_equ[8] - s8);
+        temp = s8 + params.omega * (d8 - s8);
         tmp_cells[index].speeds[8] = temp;
         local_density += temp;
 
