@@ -289,16 +289,17 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
 
         /* zero velocity density: weight w0 */
         /* axis speeds: weight w1 */
-        float d1 = w1 * local_density * ((u_x * u_x / 2) + u_x + neg);
-        float d2 = w1 * local_density * ((u_y * u_y / 2) + u_y + neg);
-        float d3 = w1 * local_density * ((u_x * u_x / 2) - u_x + neg);
-        float d4 = w1 * local_density * ((u_y * u_y / 2) - u_y + neg);
+
+        float d1 = local_density * ((u_x * u_x / 2) + u_x + neg) / 9;
+        float d2 = local_density * ((u_y * u_y / 2) + u_y + neg) / 9;
+        float d3 = local_density * ((u_x * u_x / 2) - u_x + neg) / 9;
+        float d4 = local_density * ((u_y * u_y / 2) - u_y + neg) / 9;
         /* diagonal speeds: weight w2 */
 
-        float d5 = w2 * local_density * ((u_xy * u_xy / 2) + u_xy + neg);
-        float d6 = w2 * local_density * ((u_yx * u_yx / 2) + u_yx + neg);
-        float d7 = w2 * local_density * ((u_xy * u_xy / 2) - u_xy + neg);
-        float d8 = w2 * local_density * ((u_yx * u_yx / 2) - u_yx + neg);
+        float d5 = local_density * ((u_xy * u_xy / 2) + u_xy + neg) / 36;
+        float d6 = local_density * ((u_yx * u_yx / 2) + u_yx + neg) / 36;
+        float d7 = local_density * ((u_xy * u_xy / 2) - u_xy + neg) / 36;
+        float d8 = local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36;
 
         /* relaxation step */
         float temp = s0 + params.omega * ((w0 * local_density * neg) - s0);
