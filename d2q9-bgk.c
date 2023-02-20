@@ -60,9 +60,6 @@
 #define FINALSTATEFILE  "final_state.dat"
 #define AVVELSFILE      "av_vels.dat"
 const float c_sq = 1.f / 3.f; /* square of speed of sound */
-const float w0 = 4.f / 9.f;  /* weighting factor */
-const float w1 = 1.f / 9.f;  /* weighting factor */
-const float w2 = 1.f / 36.f; /* weighting factor */
 
 /* struct to hold the parameter values */
 typedef struct
@@ -288,8 +285,8 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
         float neg = 1 - (u_sq / 6);
 
         /* zero velocity density: weight w0 */
+        float d0 = 4 * local_density * neg / 9;
         /* axis speeds: weight w1 */
-
         float d1 = local_density * ((u_x * u_x / 2) + u_x + neg) / 9;
         float d2 = local_density * ((u_y * u_y / 2) + u_y + neg) / 9;
         float d3 = local_density * ((u_x * u_x / 2) - u_x + neg) / 9;
@@ -302,41 +299,15 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
         float d8 = local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36;
 
         /* relaxation step */
-        float temp = s0 + params.omega * ((w0 * local_density * neg) - s0);
-        tmp_cells[index].speeds[0] = temp;
-        local_density = temp;
-
-        temp = s1 + (params.omega * (d1 - s1));
-        tmp_cells[index].speeds[1] = temp;
-        local_density += temp;
-
-        temp = s2 + params.omega * (d2 - s2);
-        tmp_cells[index].speeds[2] = temp;
-        local_density += temp;
-
-        temp = s3 + params.omega * (d3 - s3);
-        tmp_cells[index].speeds[3] = temp;
-        local_density += temp;
-
-        temp = s4 + params.omega * (d4 - s4);
-        tmp_cells[index].speeds[4] = temp;
-        local_density += temp;
-
-        temp = s5 + params.omega * (d5 - s5);
-        tmp_cells[index].speeds[5] = temp;
-        local_density += temp;
-
-        temp = s6 + params.omega * (d6 - s6);
-        tmp_cells[index].speeds[6] = temp;
-        local_density += temp;
-
-        temp = s7 + params.omega * (d7 - s7);
-        tmp_cells[index].speeds[7] = temp;
-        local_density += temp;
-
-        temp = s8 + params.omega * (d8 - s8);
-        tmp_cells[index].speeds[8] = temp;
-        local_density += temp;
+        tmp_cells[index].speeds[0] = s0 * (1 - params.omega) + (params.omega * d0);
+        tmp_cells[index].speeds[1] = s1 * (1 - params.omega) + (params.omega * d1);
+        tmp_cells[index].speeds[2] = s2 * (1 - params.omega) + (params.omega * d2);
+        tmp_cells[index].speeds[3] = s3 * (1 - params.omega) + (params.omega * d3);
+        tmp_cells[index].speeds[4] = s4 * (1 - params.omega) + (params.omega * d4);
+        tmp_cells[index].speeds[5] = s5 * (1 - params.omega) + (params.omega * d5);
+        tmp_cells[index].speeds[6] = s6 * (1 - params.omega) + (params.omega * d6);
+        tmp_cells[index].speeds[7] = s7 * (1 - params.omega) + (params.omega * d7);
+        tmp_cells[index].speeds[8] = s8 * (1 - params.omega) + (params.omega * d8);
 
         /* x-component of velocity */
         u_x = (tmp_cells[index].speeds[1]
