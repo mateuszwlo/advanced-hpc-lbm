@@ -294,7 +294,7 @@ int accelerate_flow(const t_param params, float* restrict speed0, float* restric
   const int jj = params.ny - 2;
   for (int ii = 0; ii < params.nx; ii++)
   {
-    int index = ii + jj*params.nx;
+    const int index = ii + jj*params.nx;
     /* if the cell is not occupied and
     ** we don't send a negative density */
     if (!obstacles[ii + jj*params.nx]
@@ -388,69 +388,41 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
       const float s6 = speed6[x_e + y_s*params.nx]; /* north-west */
       const float s7 = speed7[x_e + y_n*params.nx]; /* south-west */
       const float s8 = speed8[x_w + y_n*params.nx]; /* south-east */
-      /* don't consider occupied cells */
-      // if (obstacles[index])
-      // {
-      //   tspeed1[index] = s3;
-      //   tspeed2[index] = s4;
-      //   tspeed3[index] = s1;
-      //   tspeed4[index] = s2;
-      //   tspeed5[index] = s7;
-      //   tspeed6[index] = s8;
-      //   tspeed7[index] = s5;
-      //   tspeed8[index] = s6;
-      // }
-      // else{
-        /* compute local density total */
-        const float local_density = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8;
 
-        /* compute x velocity component */
-        const float u_x = (s1 + s5 + s8 - (s3 + s6  + s7)) / local_density * 3;
-        /* compute y velocity component */
-        const float u_y = (s2 + s5 + s6 - (s4  + s7 + s8)) / local_density * 3;
+      tspeed1[index] = s3;
+      tspeed2[index] = s4;
+      tspeed3[index] = s1;
+      tspeed4[index] = s2;
+      tspeed5[index] = s7;
+      tspeed6[index] = s8;
+      tspeed7[index] = s5;
+      tspeed8[index] = s6;
 
-        /* velocity squared */
-        const float u_sq = u_x * u_x + u_y * u_y;
-        const float u_xy = u_x + u_y;
-        const float u_yx = u_y - u_x;
-        const float neg = 1 - (u_sq / 6);
+      if(!obstacles[index]){
+      /* compute local density total */
+      const float local_density = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8;
 
-        /* zero velocity density: weight w0 */
-        const float d0 = 4 * local_density * neg / 9;
-        /* axis speeds: weight w1 */
-        const float d1 = local_density * ((u_x * u_x / 2) + u_x + neg) / 9;
-        const float d2 = local_density * ((u_y * u_y / 2) + u_y + neg) / 9;
-        const float d3 = local_density * ((u_x * u_x / 2) - u_x + neg) / 9;
-        const float d4 = local_density * ((u_y * u_y / 2) - u_y + neg) / 9;
-        /* diagonal speeds: weight w2 */
+      /* compute x velocity component */
+      const float u_x = (s1 + s5 + s8 - (s3 + s6  + s7)) / local_density * 3;
+      /* compute y velocity component */
+      const float u_y = (s2 + s5 + s6 - (s4  + s7 + s8)) / local_density * 3;
 
-        const float d5 = local_density * ((u_xy * u_xy / 2) + u_xy + neg) / 36;
-        const float d6 = local_density * ((u_yx * u_yx / 2) + u_yx + neg) / 36;
-        const float d7 = local_density * ((u_xy * u_xy / 2) - u_xy + neg) / 36;
-        const float d8 = local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36;
+      /* velocity squared */
+      const float u_sq = u_x * u_x + u_y * u_y;
+      const float u_xy = u_x + u_y;
+      const float u_yx = u_y - u_x;
+      const float neg = 1 - (u_sq / 6);
 
-        tspeed0[index] = s0 * (1 - params.omega) + (params.omega * d0);
-        tspeed1[index] = s1 * (1 - params.omega) + (params.omega * d1);
-        tspeed2[index] = s2 * (1 - params.omega) + (params.omega * d2);
-        tspeed3[index] = s3 * (1 - params.omega) + (params.omega * d3);
-        tspeed4[index] = s4 * (1 - params.omega) + (params.omega * d4);
-        tspeed5[index] = s5 * (1 - params.omega) + (params.omega * d5);
-        tspeed6[index] = s6 * (1 - params.omega) + (params.omega * d6);
-        tspeed7[index] = s7 * (1 - params.omega) + (params.omega * d7);
-        tspeed8[index] = s8 * (1 - params.omega) + (params.omega * d8);
+      tspeed0[index] = s0 * (1 - params.omega) + (params.omega * 4 * local_density * neg / 9);
+      tspeed1[index] = s1 * (1 - params.omega) + (params.omega * local_density * ((u_x * u_x / 2) + u_x + neg) / 9);
+      tspeed2[index] = s2 * (1 - params.omega) + (params.omega * local_density * ((u_y * u_y / 2) + u_y + neg) / 9);
+      tspeed3[index] = s3 * (1 - params.omega) + (params.omega * local_density * ((u_x * u_x / 2) - u_x + neg) / 9);
+      tspeed4[index] = s4 * (1 - params.omega) + (params.omega * local_density * ((u_y * u_y / 2) - u_y + neg) / 9);
+      tspeed5[index] = s5 * (1 - params.omega) + (params.omega * local_density * ((u_xy * u_xy / 2) + u_xy + neg) / 36);
+      tspeed6[index] = s6 * (1 - params.omega) + (params.omega * local_density * ((u_yx * u_yx / 2) + u_yx + neg) / 36);
+      tspeed7[index] = s7 * (1 - params.omega) + (params.omega * local_density * ((u_xy * u_xy / 2) - u_xy + neg) / 36);
+      tspeed8[index] = s8 * (1 - params.omega) + (params.omega * local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36);
 
-      if (obstacles[index])
-      {
-        tspeed1[index] = s3;
-        tspeed2[index] = s4;
-        tspeed3[index] = s1;
-        tspeed4[index] = s2;
-        tspeed5[index] = s7;
-        tspeed6[index] = s8;
-        tspeed7[index] = s5;
-        tspeed8[index] = s6;
-      }
-      else{
         /* compute x velocity component */
         const float tu_x = (tspeed1[index]
                + tspeed5[index]
