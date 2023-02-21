@@ -284,30 +284,15 @@ float collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* o
         float u_yx = u_y - u_x;
         float neg = 1 - (u_sq / 6);
 
-        /* zero velocity density: weight w0 */
-        float d0 = 4 * local_density * neg / 9;
-        /* axis speeds: weight w1 */
-        float d1 = local_density * ((u_x * u_x / 2) + u_x + neg) / 9;
-        float d2 = local_density * ((u_y * u_y / 2) + u_y + neg) / 9;
-        float d3 = local_density * ((u_x * u_x / 2) - u_x + neg) / 9;
-        float d4 = local_density * ((u_y * u_y / 2) - u_y + neg) / 9;
-        /* diagonal speeds: weight w2 */
-
-        float d5 = local_density * ((u_xy * u_xy / 2) + u_xy + neg) / 36;
-        float d6 = local_density * ((u_yx * u_yx / 2) + u_yx + neg) / 36;
-        float d7 = local_density * ((u_xy * u_xy / 2) - u_xy + neg) / 36;
-        float d8 = local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36;
-
-        /* relaxation step */
-        tmp_cells[index].speeds[0] = s0 * (1 - params.omega) + (params.omega * d0);
-        tmp_cells[index].speeds[1] = s1 * (1 - params.omega) + (params.omega * d1);
-        tmp_cells[index].speeds[2] = s2 * (1 - params.omega) + (params.omega * d2);
-        tmp_cells[index].speeds[3] = s3 * (1 - params.omega) + (params.omega * d3);
-        tmp_cells[index].speeds[4] = s4 * (1 - params.omega) + (params.omega * d4);
-        tmp_cells[index].speeds[5] = s5 * (1 - params.omega) + (params.omega * d5);
-        tmp_cells[index].speeds[6] = s6 * (1 - params.omega) + (params.omega * d6);
-        tmp_cells[index].speeds[7] = s7 * (1 - params.omega) + (params.omega * d7);
-        tmp_cells[index].speeds[8] = s8 * (1 - params.omega) + (params.omega * d8);
+        tmp_cells[index].speeds[0] = s0 * (1 - params.omega) + (params.omega * 4 * local_density * neg / 9);
+        tmp_cells[index].speeds[1] = s1 * (1 - params.omega) + (params.omega * local_density * ((u_x * u_x / 2) + u_x + neg) / 9);
+        tmp_cells[index].speeds[2] = s2 * (1 - params.omega) + (params.omega * local_density * ((u_y * u_y / 2) + u_y + neg) / 9);
+        tmp_cells[index].speeds[3] = s3 * (1 - params.omega) + (params.omega * local_density * ((u_x * u_x / 2) - u_x + neg) / 9);
+        tmp_cells[index].speeds[4] = s4 * (1 - params.omega) + (params.omega * local_density * ((u_y * u_y / 2) - u_y + neg) / 9);
+        tmp_cells[index].speeds[5] = s5 * (1 - params.omega) + (params.omega * local_density * ((u_xy * u_xy / 2) + u_xy + neg) / 36);
+        tmp_cells[index].speeds[6] = s6 * (1 - params.omega) + (params.omega * local_density * ((u_yx * u_yx / 2) + u_yx + neg) / 36);
+        tmp_cells[index].speeds[7] = s7 * (1 - params.omega) + (params.omega * local_density * ((u_xy * u_xy / 2) - u_xy + neg) / 36);
+        tmp_cells[index].speeds[8] = s8 * (1 - params.omega) + (params.omega * local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36);
 
         /* x-component of velocity */
         u_x = (tmp_cells[index].speeds[1]
