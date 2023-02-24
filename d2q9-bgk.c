@@ -320,51 +320,13 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
                 float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
                 float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles)
 {
-  int tot_cells = 0;  /* no. of cells used in calculation */
-  float tot_u = 0.f;  /* accumulated magnitudes of velocity for each cell */
-
-  __assume(params.nx % 2 == 0);
-  __assume(params.nx % 4 == 0);
-  __assume(params.nx % 8 == 0);
-  __assume(params.nx % 16 == 0);
-  __assume(params.nx % 32 == 0);
-  __assume(params.nx % 64 == 0);
-  __assume(params.nx % 128 == 0);
-  __assume(params.nx % 256 == 0);
-  __assume(params.ny % 2 == 0);
-  __assume(params.ny % 4 == 0);
-  __assume(params.ny % 8 == 0);
-  __assume(params.ny % 16 == 0);
-  __assume(params.ny % 32 == 0);
-  __assume(params.ny % 64 == 0);
-  __assume(params.ny % 128 == 0);
-  __assume(params.ny % 256 == 0);
-
-  __assume_aligned(speed0, 64);
-  __assume_aligned(speed1, 64);
-  __assume_aligned(speed2, 64);
-  __assume_aligned(speed3, 64);
-  __assume_aligned(speed4, 64);
-  __assume_aligned(speed5, 64);
-  __assume_aligned(speed6, 64);
-  __assume_aligned(speed7, 64);
-  __assume_aligned(speed8, 64);
-  __assume_aligned(tspeed0, 64);
-  __assume_aligned(tspeed1, 64);
-  __assume_aligned(tspeed2, 64);
-  __assume_aligned(tspeed3, 64);
-  __assume_aligned(tspeed4, 64);
-  __assume_aligned(tspeed5, 64);
-  __assume_aligned(tspeed6, 64);
-  __assume_aligned(tspeed7, 64);
-  __assume_aligned(tspeed8, 64);
-  __assume_aligned(obstacles, 64);
+  float result[params.nx * params.ny];
 
   /* loop over the cells in the grid
   ** NB the collision step is called after
   ** the propagate step and so values of interest
   ** are in the scratch-space grid */
-  #pragma omp parallel for reduction(+:tot_u) reduction(+:tot_cells) shared(speed0,speed1,speed2,speed3,speed4,speed5,speed6,speed7,speed8,tspeed0,tspeed1,tspeed2,tspeed3,tspeed4,tspeed5,tspeed6,tspeed7,tspeed8) schedule(stat)
+  #pragma omp parallel for schedule(static)
   for (int jj = 0; jj < params.ny; jj++)
   {
     #pragma vector aligned 
@@ -398,6 +360,8 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
       tspeed6[index] = s8;
       tspeed7[index] = s5;
       tspeed8[index] = s6;
+
+      result[index] = -1000;
 
       if(!obstacles[index]){
       /* compute local density total */
@@ -442,9 +406,19 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
               / local_density;
 
         /* accumulate the norm of x- and y- velocity components */
-        tot_u += sqrtf((tu_x * tu_x) + (tu_y * tu_y));
-        ++tot_cells;
+        result[index] = sqrtf((tu_x * tu_x) + (tu_y * tu_y));
       }
+    }
+  }
+
+  int tot_cells = 0;  /* no. of cells used in calculation */
+  float tot_u = 0.f;  /* accumulated magnitudes of velocity for each cell */
+
+  #pragma omp parallel for reduction(+:tot_u) reduction(+:tot_cells) schedule(static)
+  for(int i = 0; i < params.nx*params.ny; i++){
+    if(result[i] != -1000){
+        tot_u += result[i];
+        ++tot_cells;
     }
   }
 
