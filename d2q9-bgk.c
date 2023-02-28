@@ -323,43 +323,6 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
   int tot_cells = 0;  /* no. of cells used in calculation */
   float tot_u = 0.f;  /* accumulated magnitudes of velocity for each cell */
 
-  __assume(params.nx % 2 == 0);
-  __assume(params.nx % 4 == 0);
-  __assume(params.nx % 8 == 0);
-  __assume(params.nx % 16 == 0);
-  __assume(params.nx % 32 == 0);
-  __assume(params.nx % 64 == 0);
-  __assume(params.nx % 128 == 0);
-  __assume(params.nx % 256 == 0);
-  __assume(params.ny % 2 == 0);
-  __assume(params.ny % 4 == 0);
-  __assume(params.ny % 8 == 0);
-  __assume(params.ny % 16 == 0);
-  __assume(params.ny % 32 == 0);
-  __assume(params.ny % 64 == 0);
-  __assume(params.ny % 128 == 0);
-  __assume(params.ny % 256 == 0);
-
-  __assume_aligned(speed0, 64);
-  __assume_aligned(speed1, 64);
-  __assume_aligned(speed2, 64);
-  __assume_aligned(speed3, 64);
-  __assume_aligned(speed4, 64);
-  __assume_aligned(speed5, 64);
-  __assume_aligned(speed6, 64);
-  __assume_aligned(speed7, 64);
-  __assume_aligned(speed8, 64);
-  __assume_aligned(tspeed0, 64);
-  __assume_aligned(tspeed1, 64);
-  __assume_aligned(tspeed2, 64);
-  __assume_aligned(tspeed3, 64);
-  __assume_aligned(tspeed4, 64);
-  __assume_aligned(tspeed5, 64);
-  __assume_aligned(tspeed6, 64);
-  __assume_aligned(tspeed7, 64);
-  __assume_aligned(tspeed8, 64);
-  __assume_aligned(obstacles, 64);
-
   /* loop over the cells in the grid
   ** NB the collision step is called after
   ** the propagate step and so values of interest
