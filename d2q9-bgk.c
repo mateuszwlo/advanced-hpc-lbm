@@ -326,6 +326,26 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
   ** NB the collision step is called after
   ** the propagate step and so values of interest
   ** are in the scratch-space grid */
+  __assume_aligned(speed0, 64);
+  __assume_aligned(speed1, 64);
+  __assume_aligned(speed2, 64);
+  __assume_aligned(speed3, 64);
+  __assume_aligned(speed4, 64);
+  __assume_aligned(speed5, 64);
+  __assume_aligned(speed6, 64);
+  __assume_aligned(speed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(tspeed0, 64);
+  __assume_aligned(tspeed1, 64);
+  __assume_aligned(tspeed2, 64);
+  __assume_aligned(tspeed3, 64);
+  __assume_aligned(tspeed4, 64);
+  __assume_aligned(tspeed5, 64);
+  __assume_aligned(tspeed6, 64);
+  __assume_aligned(tspeed7, 64);
+  __assume_aligned(speed8, 64);
+  __assume_aligned(obstacles, 64);  
+
   #pragma omp parallel for schedule(static)
   for (int jj = 0; jj < params.ny; jj++)
   {
