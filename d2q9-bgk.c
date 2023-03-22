@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
   float* av_vels   = NULL;     /* a record of the av. velocity computed for each timestep */
   struct timeval timstr;                                                             /* structure to hold elapsed time */
   double tot_tic, tot_toc, init_tic, init_toc, comp_tic, comp_toc, col_tic, col_toc; /* floating point numbers to calculate elapsed wallclock time */
-  int nprocs, rank, size, remainder, start, end;
+  int nprocs, rank, size, ssize, remainder, start, end;
 
   /* parse the command line */
   if (argc != 3)
@@ -175,11 +175,6 @@ int main(int argc, char* argv[])
   &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5,  &tspeed6, &tspeed7, &tspeed8, 
   &obstacles, &av_vels);
 
-  /* Init time stops here, compute time starts*/
-  gettimeofday(&timstr, NULL);
-  init_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
-  comp_tic=init_toc;
-
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -187,8 +182,18 @@ int main(int argc, char* argv[])
   size = params.ny / nprocs;
   start = rank * size;
   end = start + size;
+  ssize = size * params.nx;
 
-  int ssize = size * params.nx;
+  double init_time = 0;
+  double compute_time = 0;
+  double collate_time = 0;
+
+  /* Init time stops here, compute time starts*/
+  gettimeofday(&timstr, NULL);
+  init_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
+  comp_tic=init_toc;
+
+  init_time = init_toc - init_tic;
 
   for (int tt = 0; tt < params.maxIters; tt++)
   {
@@ -214,6 +219,13 @@ int main(int argc, char* argv[])
 
     accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles, start, end);
     collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles, start, end);
+
+    /* Compute time stops here, collate time starts*/
+    gettimeofday(&timstr, NULL);
+    comp_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
+    col_tic=comp_toc;
+
+    compute_time += (comp_toc - comp_tic);
 
     if(rank == 0){
       float* tmp = speed0;
@@ -378,6 +390,13 @@ int main(int argc, char* argv[])
       MPI_Recv(speed8, params.ny * params.nx, MPI_FLOAT, 0, 8, MPI_COMM_WORLD, &status);
     }
 
+    /* Compute time stops here, collate time starts*/
+    gettimeofday(&timstr, NULL);
+    col_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
+    comp_tic=col_toc;
+
+    collate_time += (col_toc - col_tic);
+
     av_vels[tt] = av_velocity(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles);
 
 #ifdef DEBUG
@@ -386,27 +405,18 @@ int main(int argc, char* argv[])
     printf("tot density: %.12E\n", total_density(params, cells));
 #endif
   }
-  
-  /* Compute time stops here, collate time starts*/
-  gettimeofday(&timstr, NULL);
-  comp_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
-  col_tic=comp_toc;
 
-  // Collate data from ranks here 
-
-  /* Total/collate time stops here.*/
   gettimeofday(&timstr, NULL);
-  col_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
-  tot_toc = col_toc;
+  tot_toc = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
   
   /* write final values and free memory */
   printf("==done==\n");
   float reynolds = av_vels[params.maxIters - 1] * params.reynolds_dim / (1.f / 6.f * (2.f / params.omega - 1.f));
   printf("Reynolds number:\t\t%.12E\n", reynolds);
-  printf("Elapsed Init time:\t\t\t%.6lf (s)\n",    init_toc - init_tic);
-  printf("Elapsed Compute time:\t\t\t%.6lf (s)\n", comp_toc - comp_tic);
-  printf("Elapsed Collate time:\t\t\t%.6lf (s)\n", col_toc  - col_tic);
-  printf("Elapsed Total time:\t\t\t%.6lf (s)\n",   tot_toc  - tot_tic);
+  printf("Elapsed Init time:\t\t\t%.6lf (s)\n",    init_time);
+  printf("Elapsed Compute time:\t\t\t%.6lf (s)\n", compute_time);
+  printf("Elapsed Collate time:\t\t\t%.6lf (s)\n", collate_time);
+  printf("Elapsed Total time:\t\t\t%.6lf (s)\n",   tot_toc  - init_tic);
   write_values(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles, av_vels);
   finalise(&params, &speed0, &speed1, &speed2, &speed3, &speed4, &speed5, &speed6, &speed7, &speed8, &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5, &tspeed6, &tspeed7, &tspeed8, &obstacles, &av_vels);
   return EXIT_SUCCESS;
