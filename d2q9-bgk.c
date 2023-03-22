@@ -99,7 +99,9 @@ int collision(const t_param params, float* speed0, float* speed1, float* speed2,
   float* tspeed0, float* tspeed1, float* tspeed2, float* tspeed3, float* tspeed4, float* tspeed5,  float* tspeed6, float* tspeed7, float* tspeed8, int* obstacles, int start, int end);
 float av_velocity(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles);
 int write_values(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles, float* av_vels);
-
+int share_results(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int start, int end);
+int get_rank_start(int total, int rank, int nprocs);
+int get_rank_end(int total, int rank, int nprocs);
 /* finalise, including freeing up allocated memory */
 int finalise(const t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
@@ -153,7 +155,7 @@ int main(int argc, char* argv[])
   float* av_vels   = NULL;     /* a record of the av. velocity computed for each timestep */
   struct timeval timstr;                                                             /* structure to hold elapsed time */
   double tot_tic, tot_toc, init_tic, init_toc, comp_tic, comp_toc, col_tic, col_toc; /* floating point numbers to calculate elapsed wallclock time */
-  int nprocs, rank, size, ssize, remainder, start, end;
+  int nprocs, rank, size, ssize, start, end;
 
   /* parse the command line */
   if (argc != 3)
@@ -179,9 +181,9 @@ int main(int argc, char* argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  size = params.ny / nprocs;
-  start = rank * size;
-  end = start + size;
+  start = get_rank_start(params.ny, rank, nprocs);
+  end = get_rank_end(params.ny, rank, nprocs);
+  size = end - start;
   ssize = size * params.nx;
 
   double init_time = 0;
@@ -266,50 +268,53 @@ int main(int argc, char* argv[])
 
       MPI_Status status;
       for(int i = 1; i < nprocs; i++){
-        int s = i * ssize;
-        float* array = malloc(sizeof(float) * ssize);
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 0, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        int s = get_rank_start(params.ny, i, nprocs) * params.nx;
+        int e = get_rank_end(params.ny, i, nprocs) * params.nx;
+        int ss = e - s;
+
+        float* array = malloc(sizeof(float) * ss);
+        MPI_Recv(array, ss, MPI_FLOAT, i, 0, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed0[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 1, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 1, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed1[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 2, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 2, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed2[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 3, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 3, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed3[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 4, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 4, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed4[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 5, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 5, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed5[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 6, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 6, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed6[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 7, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 7, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed7[s + a] = array[a];
         }
 
-        MPI_Recv(array, ssize, MPI_FLOAT, i, 8, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ssize; a++){
+        MPI_Recv(array, ss, MPI_FLOAT, i, 8, MPI_COMM_WORLD, &status);
+        for(int a = 0; a < ss; a++){
           speed8[s + a] = array[a];
         }
 
@@ -328,7 +333,7 @@ int main(int argc, char* argv[])
       }
     }
     else{
-      int s = rank * ssize;
+      int s = start * params.nx;
       float* array = malloc(sizeof(float) * ssize);
       for(int a = 0; a < ssize; a++){
         array[a] = tspeed0[s + a];
@@ -421,6 +426,161 @@ int main(int argc, char* argv[])
   finalise(&params, &speed0, &speed1, &speed2, &speed3, &speed4, &speed5, &speed6, &speed7, &speed8, &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5, &tspeed6, &tspeed7, &tspeed8, &obstacles, &av_vels);
   return EXIT_SUCCESS;
 }
+
+int get_rank_start(int total, int rank, int nprocs){
+  int size = total / nprocs;
+  int remainder = total % nprocs;
+
+  if(rank < remainder){
+    return (rank * size) + rank;
+  }
+  else{
+    return (rank * size) + remainder;
+  }
+}
+
+int get_rank_end(int total, int rank, int nprocs){
+  int size = total / nprocs;
+  int remainder = total % nprocs;
+
+  if(rank < remainder){
+    int start = (rank * size) + rank;
+    return start + size + 1;
+  }
+  else{
+    int start = (rank * size) + remainder;
+    return start + size;
+  }
+}
+
+// int share_results(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int rank, int nprocs){
+//   if(rank == 0){
+//       MPI_Status status;
+//       for(int i = 1; i < nprocs; i++){
+//         int s = i * ssize;
+//         float* array = malloc(sizeof(float) * ssize);
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 0, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed0[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 1, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed1[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 2, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed2[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 3, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed3[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 4, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed4[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 5, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed5[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 6, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed6[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 7, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed7[s + a] = array[a];
+//         }
+
+//         MPI_Recv(array, ssize, MPI_FLOAT, i, 8, MPI_COMM_WORLD, &status);
+//         for(int a = 0; a < ssize; a++){
+//           speed8[s + a] = array[a];
+//         }
+
+//         free(array);
+//       }
+//       for(int i = 1; i < nprocs; i++){
+//         MPI_Send(speed0, params.ny * params.nx, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
+//         MPI_Send(speed1, params.ny * params.nx, MPI_FLOAT, i, 1, MPI_COMM_WORLD);
+//         MPI_Send(speed2, params.ny * params.nx, MPI_FLOAT, i, 2, MPI_COMM_WORLD);
+//         MPI_Send(speed3, params.ny * params.nx, MPI_FLOAT, i, 3, MPI_COMM_WORLD);
+//         MPI_Send(speed4, params.ny * params.nx, MPI_FLOAT, i, 4, MPI_COMM_WORLD);
+//         MPI_Send(speed5, params.ny * params.nx, MPI_FLOAT, i, 5, MPI_COMM_WORLD);
+//         MPI_Send(speed6, params.ny * params.nx, MPI_FLOAT, i, 6, MPI_COMM_WORLD);
+//         MPI_Send(speed7, params.ny * params.nx, MPI_FLOAT, i, 7, MPI_COMM_WORLD);
+//         MPI_Send(speed8, params.ny * params.nx, MPI_FLOAT, i, 8, MPI_COMM_WORLD);
+//       }
+//     }
+//     else{
+//       int s = rank * ssize;
+//       float* array = malloc(sizeof(float) * ssize);
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed0[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed1[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 1, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed2[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 2, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed3[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 3, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed4[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 4, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed5[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 5, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed6[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 6, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed7[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 7, MPI_COMM_WORLD);
+
+//       for(int a = 0; a < ssize; a++){
+//         array[a] = tspeed8[s + a];
+//       }
+//       MPI_Send(array, ssize, MPI_FLOAT, 0, 8, MPI_COMM_WORLD);
+
+//       free(array);
+
+//       //Receive New Grid
+//       MPI_Status status;
+//       MPI_Recv(speed0, params.ny * params.nx, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed1, params.ny * params.nx, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed2, params.ny * params.nx, MPI_FLOAT, 0, 2, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed3, params.ny * params.nx, MPI_FLOAT, 0, 3, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed4, params.ny * params.nx, MPI_FLOAT, 0, 4, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed5, params.ny * params.nx, MPI_FLOAT, 0, 5, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed6, params.ny * params.nx, MPI_FLOAT, 0, 6, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed7, params.ny * params.nx, MPI_FLOAT, 0, 7, MPI_COMM_WORLD, &status);
+//       MPI_Recv(speed8, params.ny * params.nx, MPI_FLOAT, 0, 8, MPI_COMM_WORLD, &status);
+//     }
+// }
 
 int accelerate_flow(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5,  
                     float* restrict speed6, float* restrict speed7, float* restrict speed8, int* restrict obstacles, int start, int end)
