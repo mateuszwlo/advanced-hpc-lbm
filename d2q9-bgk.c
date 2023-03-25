@@ -87,16 +87,16 @@ typedef struct
 int initialise(const char* paramfile, const char* obstaclefile,
                t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
-               int** obstacles_ptr, float** av_vels_ptr);
+               int** obstacles_ptr, float** av_vels_ptr, int rank, int nprocs);
 
 /*
 ** The main calculation methods.
 ** timestep calls, in order, the functions:
 ** accelerate_flow(), propagate(), rebound() & collision()
 */
-int accelerate_flow(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, int* obstacles, int start, int end);
+int accelerate_flow(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, int* obstacles, int rank, int start, int end);
 int collision(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, 
-  float* tspeed0, float* tspeed1, float* tspeed2, float* tspeed3, float* tspeed4, float* tspeed5,  float* tspeed6, float* tspeed7, float* tspeed8, int* obstacles, int start, int end);
+  float* tspeed0, float* tspeed1, float* tspeed2, float* tspeed3, float* tspeed4, float* tspeed5,  float* tspeed6, float* tspeed7, float* tspeed8, int* obstacles, int rank, int start, int end);
 float av_velocity(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles);
 int write_values(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles, float* av_vels);
 int share_results(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int start, int end);
@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
   float* av_vels   = NULL;     /* a record of the av. velocity computed for each timestep */
   struct timeval timstr;                                                             /* structure to hold elapsed time */
   double tot_tic, tot_toc, init_tic, init_toc, comp_tic, comp_toc, col_tic, col_toc; /* floating point numbers to calculate elapsed wallclock time */
-  int nprocs, rank, size, ssize, start, end;
+  int nprocs, rank, size, ssize, start, end, ARRAY_SIZE;
 
   /* parse the command line */
   if (argc != 3)
@@ -172,19 +172,21 @@ int main(int argc, char* argv[])
   gettimeofday(&timstr, NULL);
   tot_tic = timstr.tv_sec + (timstr.tv_usec / 1000000.0);
   init_tic=tot_tic;
-  initialise(paramfile, obstaclefile, &params, 
-  &speed0, &speed1, &speed2, &speed3, &speed4, &speed5,  &speed6, &speed7, &speed8, 
-  &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5,  &tspeed6, &tspeed7, &tspeed8, 
-  &obstacles, &av_vels);
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  initialise(paramfile, obstaclefile, &params, 
+  &speed0, &speed1, &speed2, &speed3, &speed4, &speed5,  &speed6, &speed7, &speed8, 
+  &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5,  &tspeed6, &tspeed7, &tspeed8, 
+  &obstacles, &av_vels, rank, nprocs);
+
   start = get_rank_start(params.ny, rank, nprocs);
   end = get_rank_end(params.ny, rank, nprocs);
   size = end - start;
   ssize = size * params.nx;
+  ARRAY_SIZE = (size + 2) * params.nx;
 
   double init_time = 0;
   double compute_time = 0;
@@ -219,8 +221,8 @@ int main(int argc, char* argv[])
     __assume_aligned(tspeed8, 64);
     __assume_aligned(obstacles, 64);
 
-    accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles, start, end);
-    collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles, start, end);
+    accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles, rank, start, end);
+    collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles, rank, start, end);
 
     /* Compute time stops here, collate time starts*/
     gettimeofday(&timstr, NULL);
@@ -267,132 +269,287 @@ int main(int argc, char* argv[])
       tspeed8 = tmp;
 
       MPI_Status status;
-      for(int i = 1; i < nprocs; i++){
-        int s = get_rank_start(params.ny, i, nprocs) * params.nx;
-        int e = get_rank_end(params.ny, i, nprocs) * params.nx;
-        int ss = e - s;
+      for(int r = 1; r < nprocs; r++){
+        int s = get_rank_start(params.ny, r, nprocs);
+        int e = get_rank_end(params.ny, r, nprocs);
+        int incomingSize = e - s;
+        int incomingArraySize = incomingSize * params.nx;
 
-        float* array = malloc(sizeof(float) * ss);
-        MPI_Recv(array, ss, MPI_FLOAT, i, 0, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed0[s + a] = array[a];
+        float* array = malloc(sizeof(float) * incomingArraySize);
+
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 0, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed0[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 1, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed1[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 1, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed1[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 2, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed2[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 2, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed2[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 3, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed3[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 3, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed3[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 4, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed4[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 4, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed4[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 5, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed5[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 5, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed5[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 6, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed6[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 6, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed6[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 7, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed7[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 7, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed7[y_n] = array[index];
+          }
         }
 
-        MPI_Recv(array, ss, MPI_FLOAT, i, 8, MPI_COMM_WORLD, &status);
-        for(int a = 0; a < ss; a++){
-          speed8[s + a] = array[a];
+        MPI_Recv(array, incomingArraySize, MPI_FLOAT, r, 8, MPI_COMM_WORLD, &status);
+        for(int jj = 0; jj < incomingSize; jj++){
+          for(int ii = 0; ii < params.nx; ii++){
+            int index = ii + jj*params.nx;
+            int y_n = ii + (s + jj) * params.nx;
+            speed8[y_n] = array[index];
+          }
         }
 
         free(array);
       }
-      for(int i = 1; i < nprocs; i++){
-        MPI_Send(speed0, params.ny * params.nx, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
-        MPI_Send(speed1, params.ny * params.nx, MPI_FLOAT, i, 1, MPI_COMM_WORLD);
-        MPI_Send(speed2, params.ny * params.nx, MPI_FLOAT, i, 2, MPI_COMM_WORLD);
-        MPI_Send(speed3, params.ny * params.nx, MPI_FLOAT, i, 3, MPI_COMM_WORLD);
-        MPI_Send(speed4, params.ny * params.nx, MPI_FLOAT, i, 4, MPI_COMM_WORLD);
-        MPI_Send(speed5, params.ny * params.nx, MPI_FLOAT, i, 5, MPI_COMM_WORLD);
-        MPI_Send(speed6, params.ny * params.nx, MPI_FLOAT, i, 6, MPI_COMM_WORLD);
-        MPI_Send(speed7, params.ny * params.nx, MPI_FLOAT, i, 7, MPI_COMM_WORLD);
-        MPI_Send(speed8, params.ny * params.nx, MPI_FLOAT, i, 8, MPI_COMM_WORLD);
+
+      av_vels[tt] = av_velocity(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles);
+ 
+      for(int r = 1; r < nprocs; r++){
+        int s = get_rank_start(params.ny, r, nprocs);
+        int e = get_rank_end(params.ny, r, nprocs);
+        int incomingSize = e - s;
+        int incomingArraySize = (incomingSize + 2) * params.nx;
+
+        float* array = malloc(sizeof(float) * incomingArraySize);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed0[y_n];
+        }
       }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 0, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed1[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 1, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed2[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 2, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed3[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 3, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed4[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 4, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed5[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 5, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed6[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 6, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed7[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 7, MPI_COMM_WORLD);
+
+      for(int jj = 0; jj < incomingSize + 2; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          int y_n = (s - 1) * params.nx + index;
+          if(s - 1 + jj >= params.ny) y_n = ii;
+          array[index] = speed8[y_n];
+        }
+      }
+      MPI_Send(array, incomingArraySize, MPI_FLOAT, r, 8, MPI_COMM_WORLD);
+
+      free(array);  
+    }
     }
     else{
-      int s = start * params.nx;
       float* array = malloc(sizeof(float) * ssize);
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed0[s + a];
+
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed0[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
 
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed1[s + a];
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed1[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 1, MPI_COMM_WORLD);
-
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed2[s + a];
+      
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed2[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 2, MPI_COMM_WORLD);
 
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed3[s + a];
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed3[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 3, MPI_COMM_WORLD);
 
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed4[s + a];
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed4[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 4, MPI_COMM_WORLD);
-
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed5[s + a];
+      
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed5[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 5, MPI_COMM_WORLD);
 
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed6[s + a];
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed6[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 6, MPI_COMM_WORLD);
 
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed7[s + a];
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed7[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 7, MPI_COMM_WORLD);
-
-      for(int a = 0; a < ssize; a++){
-        array[a] = tspeed8[s + a];
+      
+      for(int jj = 0; jj < size; jj++){
+        for(int ii = 0; ii < params.nx; ii++){
+          int index = ii + jj*params.nx;
+          array[index] = tspeed8[index + params.nx];
+        }
       }
       MPI_Send(array, ssize, MPI_FLOAT, 0, 8, MPI_COMM_WORLD);
 
-      free(array);
-
       //Receive New Grid
       MPI_Status status;
-      MPI_Recv(speed0, params.ny * params.nx, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed1, params.ny * params.nx, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed2, params.ny * params.nx, MPI_FLOAT, 0, 2, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed3, params.ny * params.nx, MPI_FLOAT, 0, 3, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed4, params.ny * params.nx, MPI_FLOAT, 0, 4, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed5, params.ny * params.nx, MPI_FLOAT, 0, 5, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed6, params.ny * params.nx, MPI_FLOAT, 0, 6, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed7, params.ny * params.nx, MPI_FLOAT, 0, 7, MPI_COMM_WORLD, &status);
-      MPI_Recv(speed8, params.ny * params.nx, MPI_FLOAT, 0, 8, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed0, ARRAY_SIZE, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed1, ARRAY_SIZE, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed2, ARRAY_SIZE, MPI_FLOAT, 0, 2, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed3, ARRAY_SIZE, MPI_FLOAT, 0, 3, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed4, ARRAY_SIZE, MPI_FLOAT, 0, 4, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed5, ARRAY_SIZE, MPI_FLOAT, 0, 5, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed6, ARRAY_SIZE, MPI_FLOAT, 0, 6, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed7, ARRAY_SIZE, MPI_FLOAT, 0, 7, MPI_COMM_WORLD, &status);
+      MPI_Recv(speed8, ARRAY_SIZE, MPI_FLOAT, 0, 8, MPI_COMM_WORLD, &status);
     }
 
     /* Compute time stops here, collate time starts*/
@@ -401,8 +558,6 @@ int main(int argc, char* argv[])
     comp_tic=col_toc;
 
     collate_time += (col_toc - col_tic);
-
-    av_vels[tt] = av_velocity(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles);
 
 #ifdef DEBUG
     printf("==timestep: %d==\n", tt);
@@ -416,14 +571,14 @@ int main(int argc, char* argv[])
   
   /* write final values and free memory */
   printf("==done==\n");
-  float reynolds = av_vels[params.maxIters - 1] * params.reynolds_dim / (1.f / 6.f * (2.f / params.omega - 1.f));
-  printf("Reynolds number:\t\t%.12E\n", reynolds);
+  if(rank == 0) printf("Reynolds number:\t\t%.12E\n", av_vels[params.maxIters - 1] * params.reynolds_dim / (1.f / 6.f * (2.f / params.omega - 1.f)));
   printf("Elapsed Init time:\t\t\t%.6lf (s)\n",    init_time);
   printf("Elapsed Compute time:\t\t\t%.6lf (s)\n", compute_time);
   printf("Elapsed Collate time:\t\t\t%.6lf (s)\n", collate_time);
   printf("Elapsed Total time:\t\t\t%.6lf (s)\n",   tot_toc  - init_tic);
-  write_values(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles, av_vels);
+  if(rank == 0) write_values(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles, av_vels);
   finalise(&params, &speed0, &speed1, &speed2, &speed3, &speed4, &speed5, &speed6, &speed7, &speed8, &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5, &tspeed6, &tspeed7, &tspeed8, &obstacles, &av_vels);
+  MPI_Finalize();
   return EXIT_SUCCESS;
 }
 
@@ -453,174 +608,48 @@ int get_rank_end(int total, int rank, int nprocs){
   }
 }
 
-// int share_results(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int rank, int nprocs){
-//   if(rank == 0){
-//       MPI_Status status;
-//       for(int i = 1; i < nprocs; i++){
-//         int s = i * ssize;
-//         float* array = malloc(sizeof(float) * ssize);
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 0, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed0[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 1, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed1[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 2, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed2[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 3, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed3[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 4, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed4[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 5, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed5[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 6, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed6[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 7, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed7[s + a] = array[a];
-//         }
-
-//         MPI_Recv(array, ssize, MPI_FLOAT, i, 8, MPI_COMM_WORLD, &status);
-//         for(int a = 0; a < ssize; a++){
-//           speed8[s + a] = array[a];
-//         }
-
-//         free(array);
-//       }
-//       for(int i = 1; i < nprocs; i++){
-//         MPI_Send(speed0, params.ny * params.nx, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
-//         MPI_Send(speed1, params.ny * params.nx, MPI_FLOAT, i, 1, MPI_COMM_WORLD);
-//         MPI_Send(speed2, params.ny * params.nx, MPI_FLOAT, i, 2, MPI_COMM_WORLD);
-//         MPI_Send(speed3, params.ny * params.nx, MPI_FLOAT, i, 3, MPI_COMM_WORLD);
-//         MPI_Send(speed4, params.ny * params.nx, MPI_FLOAT, i, 4, MPI_COMM_WORLD);
-//         MPI_Send(speed5, params.ny * params.nx, MPI_FLOAT, i, 5, MPI_COMM_WORLD);
-//         MPI_Send(speed6, params.ny * params.nx, MPI_FLOAT, i, 6, MPI_COMM_WORLD);
-//         MPI_Send(speed7, params.ny * params.nx, MPI_FLOAT, i, 7, MPI_COMM_WORLD);
-//         MPI_Send(speed8, params.ny * params.nx, MPI_FLOAT, i, 8, MPI_COMM_WORLD);
-//       }
-//     }
-//     else{
-//       int s = rank * ssize;
-//       float* array = malloc(sizeof(float) * ssize);
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed0[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed1[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 1, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed2[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 2, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed3[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 3, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed4[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 4, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed5[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 5, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed6[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 6, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed7[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 7, MPI_COMM_WORLD);
-
-//       for(int a = 0; a < ssize; a++){
-//         array[a] = tspeed8[s + a];
-//       }
-//       MPI_Send(array, ssize, MPI_FLOAT, 0, 8, MPI_COMM_WORLD);
-
-//       free(array);
-
-//       //Receive New Grid
-//       MPI_Status status;
-//       MPI_Recv(speed0, params.ny * params.nx, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed1, params.ny * params.nx, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed2, params.ny * params.nx, MPI_FLOAT, 0, 2, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed3, params.ny * params.nx, MPI_FLOAT, 0, 3, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed4, params.ny * params.nx, MPI_FLOAT, 0, 4, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed5, params.ny * params.nx, MPI_FLOAT, 0, 5, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed6, params.ny * params.nx, MPI_FLOAT, 0, 6, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed7, params.ny * params.nx, MPI_FLOAT, 0, 7, MPI_COMM_WORLD, &status);
-//       MPI_Recv(speed8, params.ny * params.nx, MPI_FLOAT, 0, 8, MPI_COMM_WORLD, &status);
-//     }
-// }
-
 int accelerate_flow(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5,  
-                    float* restrict speed6, float* restrict speed7, float* restrict speed8, int* restrict obstacles, int start, int end)
+                    float* restrict speed6, float* restrict speed7, float* restrict speed8, int* restrict obstacles, int rank, int start, int end)
 {
-  __assume_aligned(speed0, 64);
-  __assume_aligned(speed1, 64);
-  __assume_aligned(speed2, 64);
-  __assume_aligned(speed3, 64);
-  __assume_aligned(speed4, 64);
-  __assume_aligned(speed5, 64);
-  __assume_aligned(speed6, 64);
-  __assume_aligned(speed7, 64);
-  __assume_aligned(speed8, 64);
-  __assume_aligned(obstacles, 64);  
-
-
-  /* compute weighting factors */
-  const float w1 = params.density * params.accel / 9.f;
-  const float w2 = params.density * params.accel / 36.f;
-
   /* modify the 2nd row of the grid */
-  const int jj = params.ny - 2;
-  for (int ii = 0; ii < params.nx; ii++)
-  {
-    const int index = ii + jj*params.nx;
-    /* if the cell is not occupied and
-    ** we don't send a negative density */
-    if (!obstacles[ii + jj*params.nx]
-        && (speed3[index] - w1) > 0.f
-        && (speed6[index] - w2) > 0.f
-        && (speed7[index] - w2) > 0.f)
+  int jj = params.ny - 2;
+
+  if(start <= jj && end > jj){
+    __assume_aligned(speed0, 64);
+    __assume_aligned(speed1, 64);
+    __assume_aligned(speed2, 64);
+    __assume_aligned(speed3, 64);
+    __assume_aligned(speed4, 64);
+    __assume_aligned(speed5, 64);
+    __assume_aligned(speed6, 64);
+    __assume_aligned(speed7, 64);
+    __assume_aligned(speed8, 64);
+    __assume_aligned(obstacles, 64);  
+
+    /* compute weighting factors */
+    const float w1 = params.density * params.accel / 9.f;
+    const float w2 = params.density * params.accel / 36.f;
+
+    for (int ii = 0; ii < params.nx; ii++)
     {
-      /* increase 'east-side' densities */
-      speed1[index] += w1;
-      speed5[index] += w2;
-      speed8[index] += w2;
-      /* decrease 'west-side' densities */
-      speed3[index] -= w1;
-      speed6[index] -= w2;
-      speed7[index] -= w2;
+      int index = ii + jj*params.nx;
+      if(rank != 0) index = ii + ((end - start - 1) * params.nx);
+      /* if the cell is not occupied and
+      ** we don't send a negative density */
+      if (!obstacles[ii + jj*params.nx]
+          && (speed3[index] - w1) > 0.f
+          && (speed6[index] - w2) > 0.f
+          && (speed7[index] - w2) > 0.f)
+      {
+        /* increase 'east-side' densities */
+        speed1[index] += w1;
+        speed5[index] += w2;
+        speed8[index] += w2;
+        /* decrease 'west-side' densities */
+        speed3[index] -= w1;
+        speed6[index] -= w2;
+        speed7[index] -= w2;
+      }
     }
   }
 
@@ -629,26 +658,35 @@ int accelerate_flow(const t_param params, float* restrict speed0, float* restric
 
 int collision(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
                 float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
-                float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles, int start, int end)
+                float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles, int rank, int start, int end)
 {
   /* loop over the cells in the grid
   ** NB the collision step is called after
   ** the propagate step and so values of interest
   ** are in the scratch-space grid */
-  for (int jj = start; jj < end; jj++)
+ int size = end - start;
+  for (int j = 1; j < size + 1; j++)
   {
     #pragma vector aligned 
     for (int ii = 0; ii < params.nx; ii++)
     {
-      const int index = ii + jj*params.nx;
+      int jj = j;
       int y_n = jj + 1;
-      if(y_n == params.ny) y_n = 0;
       int x_e = ii + 1;
       if(x_e == params.nx) x_e = 0;
       int y_s = jj - 1;
-      if(y_s == -1) y_s = params.ny - 1;
       int x_w = ii - 1;
       if(x_w == -1) x_w = params.nx - 1;
+
+      if(rank == 0){
+        jj = j - 1;
+        y_n = jj + 1;
+        if(y_n == params.ny) y_n = 0;
+        y_s = jj - 1;
+        if(y_s == -1) y_s = params.ny - 1;
+      }
+
+      const int index = ii + jj*params.nx;
 
       const float s0 = speed0[ii + jj*params.nx]; /* central cell, no movement */
       const float s1 = speed1[x_w + jj*params.nx]; /* east */
@@ -669,7 +707,7 @@ int collision(const t_param params, float* restrict speed0, float* restrict spee
       tspeed7[index] = s5;
       tspeed8[index] = s6;
 
-      if(!obstacles[index]){
+      if(!obstacles[ii + ((start + j - 1) * params.nx)]){
       /* compute local density total */
       const float local_density = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8;
 
@@ -711,12 +749,11 @@ float av_velocity(const t_param params, float* speed0, float* speed1, float* spe
   /* loop over all non-blocked cells */
   for (int jj = 0; jj < params.ny; jj++)
   {
-    #pragma vector aligned 
     for (int ii = 0; ii < params.nx; ii++)
     {
       int index = ii + jj*params.nx;
       /* ignore occupied cells */
-      if (!obstacles[ii + jj*params.nx])
+      if (!obstacles[index])
       {
         /* local density total */
         const float local_density = speed0[index] + speed1[index] + speed2[index] + speed3[index] + speed4[index] + speed5[index] + speed6[index] + speed7[index] + speed8[index];
@@ -751,7 +788,7 @@ float av_velocity(const t_param params, float* speed0, float* speed1, float* spe
 int initialise(const char* paramfile, const char* obstaclefile,
                t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
-               int** obstacles_ptr, float** av_vels_ptr)
+               int** obstacles_ptr, float** av_vels_ptr, int rank, int nprocs)
 {
   char   message[1024];  /* message buffer */
   FILE*   fp;            /* file pointer */
@@ -818,30 +855,36 @@ int initialise(const char* paramfile, const char* obstaclefile,
   ** hold an array of 'speeds'.  We will allocate
   ** a 1D array of these structs.
   */
+  int start = get_rank_start(params->ny, rank, nprocs);
+  int end = get_rank_end(params->ny, rank, nprocs);
+  int size = end - start;
+  int ARRAY_SIZE = (size + 2) * params->nx;
+
+  if(rank == 0) ARRAY_SIZE = params->nx*params->ny;
 
   /* main grid */
-  *speed0 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed1 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed2 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed3 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed4 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed5 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed6 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed7 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *speed8 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *speed0 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed1 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed2 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed3 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed4 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed5 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed6 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed7 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *speed8 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
 
   //if (*cells_ptr == NULL) die("cannot allocate memory for cells", __LINE__, __FILE__);
 
   /* 'helper' grid, used as scratch space */
-  *tspeed0 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed1 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed2 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed3 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed4 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed5 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed6 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed7 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
-  *tspeed8 = _mm_malloc(sizeof(float) * (params->ny * params->nx), 64);
+  *tspeed0 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed1 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed2 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed3 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed4 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed5 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed6 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed7 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
+  *tspeed8 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
 
   //if (*tmp_cells_ptr == NULL) die("cannot allocate memory for tmp_cells", __LINE__, __FILE__);
 
@@ -855,24 +898,21 @@ int initialise(const char* paramfile, const char* obstaclefile,
   float w1 = params->density      / 9.f;
   float w2 = params->density      / 36.f;
 
-  for (int jj = 0; jj < params->ny; jj++)
-  {
-    for (int ii = 0; ii < params->nx; ii++)
+    for (int i = 0; i < ARRAY_SIZE; i++)
     {
       /* centre */
-      (*speed0)[ii + jj*params->nx] = w0;
+      (*speed0)[i] = w0;
       /* axis directions */
-      (*speed1)[ii + jj*params->nx] = w1;
-      (*speed2)[ii + jj*params->nx] = w1;
-      (*speed3)[ii + jj*params->nx] = w1;
-      (*speed4)[ii + jj*params->nx] = w1;
+      (*speed1)[i] = w1;
+      (*speed2)[i] = w1;
+      (*speed3)[i] = w1;
+      (*speed4)[i] = w1;
       /* diagonals */
-      (*speed5)[ii + jj*params->nx] = w2;
-      (*speed6)[ii + jj*params->nx] = w2;
-      (*speed7)[ii + jj*params->nx] = w2;
-      (*speed8)[ii + jj*params->nx] = w2;
+      (*speed5)[i] = w2;
+      (*speed6)[i] = w2;
+      (*speed7)[i] = w2;
+      (*speed8)[i] = w2;
     }
-  }
 
   /* first set all cells in obstacle array to zero */
   for (int jj = 0; jj < params->ny; jj++)
@@ -990,14 +1030,6 @@ int finalise(const t_param* params, float** speed0, float** speed1, float** spee
   return EXIT_SUCCESS;
 }
 
-
-// float calc_reynolds(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, int* obstacles)
-// {
-//   const float viscosity = 1.f / 6.f * (2.f / params.omega - 1.f);
-
-//   return av_velocity(params, cells, obstacles) * params.reynolds_dim / viscosity;
-// }
-
 float total_density(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8)
 {
   float total = 0.f;  /* accumulator */
@@ -1068,7 +1100,7 @@ int write_values(const t_param params, float* speed0, float* speed1, float* spee
     {
       int index = ii + jj*params.nx;
       /* an occupied cell */
-      if (obstacles[ii + jj*params.nx])
+      if (obstacles[index])
       {
         u_x = u_y = u = 0.f;
         pressure = params.density * c_sq;
@@ -1109,7 +1141,7 @@ int write_values(const t_param params, float* speed0, float* speed1, float* spee
       }
 
       /* write to file */
-      fprintf(fp, "%d %d %.12E %.12E %.12E %.12E %d\n", ii, jj, u_x, u_y, u, pressure, obstacles[ii + params.nx * jj]);
+      fprintf(fp, "%d %d %.12E %.12E %.12E %.12E %d\n", ii, jj, u_x, u_y, u, pressure, obstacles[index]);
     }
   }
 
