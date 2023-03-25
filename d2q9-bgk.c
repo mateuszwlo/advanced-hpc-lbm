@@ -60,6 +60,7 @@
 #define NSPEEDS         9
 #define FINALSTATEFILE  "final_state.dat"
 #define AVVELSFILE      "av_vels.dat"
+#define TOT_U_TAG 9
 
 /* struct to hold the parameter values */
 typedef struct
@@ -95,9 +96,8 @@ int initialise(const char* paramfile, const char* obstaclefile,
 ** accelerate_flow(), propagate(), rebound() & collision()
 */
 int accelerate_flow(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, int* obstacles, int rank, int start, int end);
-int collision(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, 
+float collision(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5,  float* speed6, float* speed7, float* speed8, 
   float* tspeed0, float* tspeed1, float* tspeed2, float* tspeed3, float* tspeed4, float* tspeed5,  float* tspeed6, float* tspeed7, float* tspeed8, int* obstacles, int rank, int start, int end);
-float av_velocity(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles);
 int write_values(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles, float* av_vels);
 int share_results(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int start, int end);
 int get_rank_start(int total, int rank, int nprocs);
@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
   float* av_vels   = NULL;     /* a record of the av. velocity computed for each timestep */
   struct timeval timstr;                                                             /* structure to hold elapsed time */
   double tot_tic, tot_toc, init_tic, init_toc, comp_tic, comp_toc, col_tic, col_toc; /* floating point numbers to calculate elapsed wallclock time */
-  int nprocs, rank, size, ssize, start, end, ARRAY_SIZE;
+  int nprocs, rank, size, ssize, start, end, ARRAY_SIZE, tot_cells;
 
   /* parse the command line */
   if (argc != 3)
@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  initialise(paramfile, obstaclefile, &params, 
+  tot_cells = initialise(paramfile, obstaclefile, &params, 
   &speed0, &speed1, &speed2, &speed3, &speed4, &speed5,  &speed6, &speed7, &speed8, 
   &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5,  &tspeed6, &tspeed7, &tspeed8, 
   &obstacles, &av_vels, rank, nprocs);
@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
     __assume_aligned(obstacles, 64);
 
     accelerate_flow(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, obstacles, rank, start, end);
-    collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles, rank, start, end);
+    float tot_u = collision(params, speed0, speed1, speed2, speed3, speed4, speed5,  speed6, speed7, speed8, tspeed0, tspeed1, tspeed2, tspeed3, tspeed4, tspeed5,  tspeed6, tspeed7, tspeed8, obstacles, rank, start, end);
 
     /* Compute time stops here, collate time starts*/
     gettimeofday(&timstr, NULL);
@@ -270,6 +270,10 @@ int main(int argc, char* argv[])
 
       MPI_Status status;
       for(int r = 1; r < nprocs; r++){
+        float t;
+        MPI_Recv(&t, 1, MPI_FLOAT, r, TOT_U_TAG, MPI_COMM_WORLD, &status);
+        tot_u += t;
+
         int s = get_rank_start(params.ny, r, nprocs);
         int e = get_rank_end(params.ny, r, nprocs);
         int incomingSize = e - s;
@@ -361,7 +365,7 @@ int main(int argc, char* argv[])
         free(array);
       }
 
-      av_vels[tt] = av_velocity(params, speed0, speed1, speed2, speed3, speed4, speed5, speed6, speed7, speed8, obstacles);
+      av_vels[tt] = tot_u / (float) tot_cells;
  
       for(int r = 1; r < nprocs; r++){
         int s = get_rank_start(params.ny, r, nprocs);
@@ -465,6 +469,8 @@ int main(int argc, char* argv[])
     }
     }
     else{
+      MPI_Send(&tot_u, 1, MPI_FLOAT, 0, TOT_U_TAG, MPI_COMM_WORLD);
+
       float* array = malloc(sizeof(float) * ssize);
 
       for(int jj = 0; jj < size; jj++){
@@ -656,7 +662,7 @@ int accelerate_flow(const t_param params, float* restrict speed0, float* restric
   return EXIT_SUCCESS;
 }
 
-int collision(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
+float collision(const t_param params, float* restrict speed0, float* restrict speed1, float* restrict speed2, float* restrict speed3, float* restrict speed4, float* restrict speed5, 
                 float* restrict speed6, float* restrict speed7, float* restrict speed8, float* restrict tspeed0, float* restrict tspeed1, float* restrict tspeed2, float* restrict tspeed3, 
                 float* restrict tspeed4, float* restrict tspeed5,  float* restrict tspeed6, float* restrict tspeed7, float* restrict tspeed8, int* restrict obstacles, int rank, int start, int end)
 {
@@ -664,7 +670,9 @@ int collision(const t_param params, float* restrict speed0, float* restrict spee
   ** NB the collision step is called after
   ** the propagate step and so values of interest
   ** are in the scratch-space grid */
- int size = end - start;
+  float tot_u = 0.f;
+  int size = end - start;
+
   for (int j = 1; j < size + 1; j++)
   {
     #pragma vector aligned 
@@ -731,58 +739,31 @@ int collision(const t_param params, float* restrict speed0, float* restrict spee
       tspeed6[index] = s6 * (1 - params.omega) + (params.omega * local_density * ((u_yx * u_yx / 2) + u_yx + neg) / 36);
       tspeed7[index] = s7 * (1 - params.omega) + (params.omega * local_density * ((u_xy * u_xy / 2) - u_xy + neg) / 36);
       tspeed8[index] = s8 * (1 - params.omega) + (params.omega * local_density * ((u_yx * u_yx / 2) - u_yx + neg) / 36);
-      }
-    }
-  }
 
-  return EXIT_SUCCESS;
-}
-
-float av_velocity(const t_param params, float* speed0, float* speed1, float* speed2, float* speed3, float* speed4, float* speed5, float* speed6, float* speed7, float* speed8, int* obstacles)
-{
-  int    tot_cells = 0;  /* no. of cells used in calculation */
-  float tot_u;          /* accumulated magnitudes of velocity for each cell */
-
-  /* initialise */
-  tot_u = 0.f;
-
-  /* loop over all non-blocked cells */
-  for (int jj = 0; jj < params.ny; jj++)
-  {
-    for (int ii = 0; ii < params.nx; ii++)
-    {
-      int index = ii + jj*params.nx;
-      /* ignore occupied cells */
-      if (!obstacles[index])
-      {
-        /* local density total */
-        const float local_density = speed0[index] + speed1[index] + speed2[index] + speed3[index] + speed4[index] + speed5[index] + speed6[index] + speed7[index] + speed8[index];
-
-        /* x-component of velocity */
-        const float u_x = (speed1[index]
-               + speed5[index]
-               + speed8[index]
-               - (speed3[index]
-                  + speed6[index]
-                  + speed7[index]))
+      /* x-component of velocity */
+      const float tu_x = (tspeed1[index]
+               + tspeed5[index]
+               + tspeed8[index]
+               - (tspeed3[index]
+                  + tspeed6[index]
+                  + tspeed7[index]))
               / local_density;
+
         /* compute y velocity component */
-        const float u_y = (speed2[index]
-               + speed5[index]
-               + speed6[index]
-               - (speed4[index]
-                  + speed7[index]
-                  + speed8[index]))
+        const float tu_y = (tspeed2[index]
+               + tspeed5[index]
+               + tspeed6[index]
+               - (tspeed4[index]
+                  + tspeed7[index]
+                  + tspeed8[index]))
               / local_density;
         /* accumulate the norm of x- and y- velocity components */
-        tot_u += sqrtf((u_x * u_x) + (u_y * u_y));
-        /* increase counter of inspected cells */
-        ++tot_cells;
+        tot_u += sqrtf((tu_x * tu_x) + (tu_y * tu_y));
       }
     }
   }
 
-  return tot_u / (float)tot_cells;
+  return tot_u;
 }
 
 int initialise(const char* paramfile, const char* obstaclefile,
@@ -859,6 +840,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
   int end = get_rank_end(params->ny, rank, nprocs);
   int size = end - start;
   int ARRAY_SIZE = (size + 2) * params->nx;
+  int tot_cells = params->nx * params->ny;
 
   if(rank == 0) ARRAY_SIZE = params->nx*params->ny;
 
@@ -894,6 +876,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
   if (*obstacles_ptr == NULL) die("cannot allocate column memory for obstacles", __LINE__, __FILE__);
 
   /* initialise densities */
+  /* first set all cells in obstacle array to zero */
   float w0 = params->density * 4.f / 9.f;
   float w1 = params->density      / 9.f;
   float w2 = params->density      / 36.f;
@@ -914,15 +897,11 @@ int initialise(const char* paramfile, const char* obstaclefile,
       (*speed8)[i] = w2;
     }
 
-  /* first set all cells in obstacle array to zero */
-  for (int jj = 0; jj < params->ny; jj++)
-  {
-    for (int ii = 0; ii < params->nx; ii++)
-    {
+  for(int jj = 0; jj < params->ny; jj++){
+    for(int ii = 0; ii < params->nx; ii++){
       (*obstacles_ptr)[ii + jj*params->nx] = 0;
     }
   }
-
   /* open the obstacle data file */
   fp = fopen(obstaclefile, "r");
 
@@ -946,6 +925,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
 
     /* assign to array */
     (*obstacles_ptr)[xx + yy*params->nx] = blocked;
+    --tot_cells;
   }
 
   /* and close the file */
@@ -957,7 +937,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
   */
   *av_vels_ptr = (float*)_mm_malloc(sizeof(float) * params->maxIters, 64);
 
-  return EXIT_SUCCESS;
+  return tot_cells;
 }
 
 int finalise(const t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
