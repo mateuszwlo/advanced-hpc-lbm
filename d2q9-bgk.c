@@ -241,18 +241,10 @@ int main(int argc, char* argv[])
     swap_pointers(&speed0, &speed1, &speed2, &speed3, &speed4, &speed5, &speed6, &speed7, &speed8, &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5, &tspeed6, &tspeed7, &tspeed8);
 
     //Sum all tot_u values and calculate average
-    if(rank == 0){
-      for(int r = 1; r < nprocs; r++){
-        float t;
-        MPI_Recv(&t, 1, MPI_FLOAT, r, TOT_U_TAG, MPI_COMM_WORLD, &status);
-        tot_u += t;
-      }
-      av_vels[tt] = tot_u / (float) tot_cells;
-    }
-    else{
-      MPI_Send(&tot_u, 1, MPI_FLOAT, 0, TOT_U_TAG, MPI_COMM_WORLD);
-    }
-
+    float result;
+    MPI_Reduce(&tot_u, &result, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+    if(rank == 0) av_vels[tt] = result / (float) tot_cells;
+    
     //Sending top halo region
     float* send_array_top = malloc(sizeof(float) * params.nx);
     float* send_array_bottom = malloc(sizeof(float) * params.nx);
@@ -910,35 +902,15 @@ int initialise(const char* paramfile, const char* obstaclefile,
 
     /* and close up the file */
     fclose(fp);
+  }
 
-    for(int r = 1; r < nprocs; r++){
-      MPI_Send(&(params->nx), 1, MPI_INT, r, NX_TAG, MPI_COMM_WORLD);
-      MPI_Send(&(params->ny), 1, MPI_INT, r, NY_TAG, MPI_COMM_WORLD);
-      MPI_Send(&(params->maxIters), 1, MPI_INT, r, MAX_ITERS_TAG, MPI_COMM_WORLD);
-      MPI_Send(&(params->reynolds_dim), 1, MPI_INT, r, REYNOLDS_DIM_TAG, MPI_COMM_WORLD);
-      MPI_Send(&(params->density), 1, MPI_FLOAT, r, DENSITY_TAG, MPI_COMM_WORLD);
-      MPI_Send(&(params->accel), 1, MPI_FLOAT, r, ACCEL_TAG, MPI_COMM_WORLD);
-      MPI_Send(&(params->omega), 1, MPI_FLOAT, r, OMEGA_TAG, MPI_COMM_WORLD);
-    }
-  }
-  else{
-    int a;
-    MPI_Recv(&a, 1, MPI_INT, 0, NX_TAG, MPI_COMM_WORLD, &status);
-    params->nx = a;
-    MPI_Recv(&a, 1, MPI_INT, 0, NY_TAG, MPI_COMM_WORLD, &status);
-    params->ny = a;
-    MPI_Recv(&a, 1, MPI_INT, 0, MAX_ITERS_TAG, MPI_COMM_WORLD, &status);
-    params->maxIters = a;
-    MPI_Recv(&a, 1, MPI_INT, 0, REYNOLDS_DIM_TAG, MPI_COMM_WORLD, &status);
-    params->reynolds_dim = a;
-    float b;
-    MPI_Recv(&b, 1, MPI_FLOAT, 0, DENSITY_TAG, MPI_COMM_WORLD, &status);
-    params->density = b;
-    MPI_Recv(&b, 1, MPI_FLOAT, 0, ACCEL_TAG, MPI_COMM_WORLD, &status);
-    params->accel = b;
-    MPI_Recv(&b, 1, MPI_FLOAT, 0, OMEGA_TAG, MPI_COMM_WORLD, &status);
-    params->omega = b;
-  }
+  MPI_Bcast(&(params->nx), 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(params->ny), 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(params->maxIters), 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(params->reynolds_dim), 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(params->density), 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(params->accel), 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&(params->omega), 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
   /*
   ** Allocate memory.
@@ -1046,14 +1018,10 @@ int initialise(const char* paramfile, const char* obstaclefile,
 
     /* and close the file */
     fclose(fp);
+  }
 
-    for(int r = 1; r < nprocs; r++){
-      MPI_Send(*obstacles_ptr, params->ny * params->nx, MPI_INT, r, OBSTACLES_TAG, MPI_COMM_WORLD);
-    }
-  }
-  else{
-    MPI_Recv(*obstacles_ptr, params->ny * params->nx, MPI_INT, 0, OBSTACLES_TAG, MPI_COMM_WORLD, &status);
-  }
+  MPI_Bcast(*obstacles_ptr, params->ny * params->nx, MPI_INT, 0, MPI_COMM_WORLD);
+
   /*
   ** allocate space to hold a record of the avarage velocities computed
   ** at each timestep
