@@ -90,7 +90,7 @@ typedef struct
 int initialise(const char* paramfile, const char* obstaclefile,
                t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
-               int** obstacles_ptr, float** av_vels_ptr, int rank, int nprocs);
+               int** obstacles_ptr, float** av_vels_ptr, float** send_array_top, float** send_array_bottom, float** recv_array_top, float** recv_array_bottom, int rank, int nprocs);
 /*
 ** The main calculation methods.
 ** timestep calls, in order, the functions:
@@ -107,7 +107,7 @@ int swap_pointers(float** speed0, float** speed1, float** speed2, float** speed3
 /* finalise, including freeing up allocated memory */
 int finalise(const t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
-             int** obstacles_ptr, float** av_vels_ptr);
+             int** obstacles_ptr, float** av_vels_ptr, float** send_array_top, float** send_array_bottom, float** recv_array_top, float** recv_array_bottom);
 /* utility functions */
 void die(const char* message, const int line, const char* file);
 void usage(const char* exe);
@@ -142,11 +142,16 @@ int main(int argc, char* argv[])
   float* tspeed7 = NULL;
   float* tspeed8 = NULL;
 
+  float* send_array_top = NULL;
+  float* send_array_bottom = NULL;
+  float* recv_array_top = NULL;
+  float* recv_array_bottom = NULL;
+
   int* obstacles = NULL;    /* grid indicating which cells are blocked */
   float* av_vels   = NULL;     /* a record of the av. velocity computed for each timestep */
   struct timeval timstr;                                                             /* structure to hold elapsed time */
   double tot_tic, tot_toc, init_tic, init_toc, comp_tic, comp_toc, col_tic, col_toc; /* floating point numbers to calculate elapsed wallclock time */
-  int nprocs, rank, size, ssize, start, end, tot_cells, length;
+  int nprocs, rank, size, ssize, start, end, tot_cells, length, halo_region_size;
   MPI_Status status;
   double compute_time = 0;
   double collate_time = 0;
@@ -174,7 +179,7 @@ int main(int argc, char* argv[])
   tot_cells = initialise(paramfile, obstaclefile, &params, 
   &speed0, &speed1, &speed2, &speed3, &speed4, &speed5,  &speed6, &speed7, &speed8, 
   &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5,  &tspeed6, &tspeed7, &tspeed8, 
-  &obstacles, &av_vels, rank, nprocs);
+  &obstacles, &av_vels, &send_array_top, &send_array_bottom, &recv_array_top, &recv_array_bottom, rank, nprocs);
 
   /* Init time stops here, compute time starts*/
   gettimeofday(&timstr, NULL);
@@ -186,6 +191,7 @@ int main(int argc, char* argv[])
   size = end - start;
   length = size + 2;
   ssize = size * params.nx;
+  halo_region_size = NSPEEDS * params.nx;
 
   //Node n - 1
   int top = rank - 1;
@@ -234,12 +240,6 @@ int main(int argc, char* argv[])
     if(rank == 0) av_vels[tt] = result / (float) tot_cells;
     
     //Sending top halo region
-    int halo_region_size = NSPEEDS * params.nx;
-    float* send_array_top = malloc(sizeof(float) * halo_region_size);
-    float* send_array_bottom = malloc(sizeof(float) * halo_region_size);
-    float* recv_array_top = malloc(sizeof(float) * halo_region_size);  
-    float* recv_array_bottom = malloc(sizeof(float) * halo_region_size); 
-
     #pragma vector aligned 
     for(int ii = 0; ii < params.nx; ii++){
       send_array_top[ii + 0*params.nx] = speed0[ii + params.nx];
@@ -294,11 +294,6 @@ int main(int argc, char* argv[])
       speed7[ii + ((size + 1) * params.nx)] = recv_array_top[ii + 7*params.nx];
       speed8[ii + ((size + 1) * params.nx)] = recv_array_top[ii + 8*params.nx];   
     }
-
-    free(recv_array_top);
-    free(recv_array_bottom);
-    free(send_array_top);
-    free(send_array_bottom);
     /* Collate time stops here, compute time starts again*/
     if(tt != params.maxIters - 1){
       gettimeofday(&timstr, NULL);
@@ -422,7 +417,8 @@ int main(int argc, char* argv[])
     printf("Elapsed Collate time:\t\t\t%.6lf (s)\n", collate_time);
     printf("Elapsed Total time:\t\t\t%.6lf (s)\n",   tot_toc  - tot_tic);
   }
-  finalise(&params, &speed0, &speed1, &speed2, &speed3, &speed4, &speed5, &speed6, &speed7, &speed8, &tspeed0, &tspeed1, &tspeed2, &tspeed3, &tspeed4, &tspeed5, &tspeed6, &tspeed7, &tspeed8, &obstacles, &av_vels);
+  finalise(&params, &speed0, &speed1, &speed2, &speed3, &speed4, &speed5, &speed6, &speed7, &speed8, &tspeed0, &tspeed1, 
+           &tspeed2, &tspeed3, &tspeed4, &tspeed5, &tspeed6, &tspeed7, &tspeed8, &obstacles, &av_vels, &send_array_top, &send_array_bottom, &recv_array_top, &recv_array_bottom);
   MPI_Finalize();
   return EXIT_SUCCESS;
 }
@@ -646,7 +642,7 @@ float collision(const t_param params, float* restrict speed0, float* restrict sp
 int initialise(const char* paramfile, const char* obstaclefile,
                t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
-               int** obstacles_ptr, float** av_vels_ptr, int rank, int nprocs)
+               int** obstacles_ptr, float** av_vels_ptr, float** send_array_top, float** send_array_bottom, float** recv_array_top, float** recv_array_bottom, int rank, int nprocs)
 {
   char   message[1024];  /* message buffer */
   FILE*   fp;            /* file pointer */
@@ -727,6 +723,12 @@ int initialise(const char* paramfile, const char* obstaclefile,
   int size = end - start;
   int ARRAY_SIZE = (size + 2) * params->nx;
   int tot_cells = params->nx * params->ny;
+  int halo_region_size = params->nx * NSPEEDS;
+
+  *send_array_top = _mm_malloc(sizeof(float) * halo_region_size, 64);
+  *send_array_bottom = _mm_malloc(sizeof(float) * halo_region_size, 64);
+  *recv_array_top = _mm_malloc(sizeof(float) * halo_region_size, 64);  
+  *recv_array_bottom = _mm_malloc(sizeof(float) * halo_region_size, 64); 
 
   /* main grid */
   *speed0 = _mm_malloc(sizeof(float) * ARRAY_SIZE, 64);
@@ -825,7 +827,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
 
 int finalise(const t_param* params, float** speed0, float** speed1, float** speed2, float** speed3, float** speed4, float** speed5,  float** speed6, float** speed7, float** speed8, 
   float** tspeed0, float** tspeed1, float** tspeed2, float** tspeed3, float** tspeed4, float** tspeed5,  float** tspeed6, float** tspeed7, float** tspeed8,
-             int** obstacles_ptr, float** av_vels_ptr)
+             int** obstacles_ptr, float** av_vels_ptr, float** send_array_top, float** send_array_bottom, float** recv_array_top, float** recv_array_bottom)
 {
   /*
   ** free up allocated memory
@@ -889,6 +891,18 @@ int finalise(const t_param* params, float** speed0, float** speed1, float** spee
 
   _mm_free(*av_vels_ptr);
   *av_vels_ptr = NULL;
+
+  _mm_free(*send_array_top);
+  *send_array_top = NULL;
+
+  _mm_free(*send_array_bottom);
+  *send_array_bottom = NULL;
+
+  _mm_free(*recv_array_top);
+  *recv_array_top = NULL;
+
+  _mm_free(*recv_array_bottom);
+  *recv_array_bottom = NULL;
 
   return EXIT_SUCCESS;
 }
