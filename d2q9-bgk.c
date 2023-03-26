@@ -304,18 +304,19 @@ int main(int argc, char* argv[])
   }
 
   if(rank == 0){
-    float* final_speed0 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed1 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed2 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed3 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed4 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed5 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed6 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed7 = malloc(sizeof(float) * params.ny * params.nx);
-    float* final_speed8 = malloc(sizeof(float) * params.ny * params.nx);
+    float* final_speed0 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed1 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed2 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed3 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed4 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed5 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed6 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed7 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
+    float* final_speed8 = _mm_malloc(sizeof(float) * params.ny * params.nx, 64);
 
     //Copy itself's chunk
     for(int jj = 0; jj < size; jj++){
+      #pragma vector aligned
       for(int ii = 0; ii < params.nx; ii++){
         int index = ii + jj*params.nx;
         final_speed0[index] = speed0[index + params.nx];
@@ -336,10 +337,12 @@ int main(int argc, char* argv[])
       int incomingSize = e - s;
       int incomingArraySize = incomingSize * params.nx;
 
-      float* array = malloc(sizeof(float) * incomingArraySize * NSPEEDS);
+      float* array = _mm_malloc(sizeof(float) * incomingArraySize * NSPEEDS, 64);
 
       MPI_Recv(array, incomingArraySize * NSPEEDS, MPI_FLOAT, r, 20, MPI_COMM_WORLD, &status);
+
       for(int jj = 0; jj < incomingSize; jj++){
+        #pragma vector aligned
         for(int ii = 0; ii < params.nx; ii++){
           int index = ii + jj*params.nx;
           int y_n = ii + ((s + jj) * params.nx);
@@ -355,7 +358,7 @@ int main(int argc, char* argv[])
         }
       }
 
-      free(array);
+      _mm_free(array);
     }
 
     /* Total/collate time stops here.*/
@@ -366,15 +369,15 @@ int main(int argc, char* argv[])
 
     /* write final values and free memory */
     write_values(params, final_speed0, final_speed1, final_speed2, final_speed3, final_speed4, final_speed5, final_speed6, final_speed7, final_speed8, obstacles, av_vels);
-    free(final_speed0);
-    free(final_speed1);
-    free(final_speed2);
-    free(final_speed3);
-    free(final_speed4);
-    free(final_speed5);
-    free(final_speed6);
-    free(final_speed7);
-    free(final_speed8);
+    _mm_free(final_speed0);
+    _mm_free(final_speed1);
+    _mm_free(final_speed2);
+    _mm_free(final_speed3);
+    _mm_free(final_speed4);
+    _mm_free(final_speed5);
+    _mm_free(final_speed6);
+    _mm_free(final_speed7);
+    _mm_free(final_speed8);
 
     printf("==done==\n");
     printf("Reynolds number:\t\t%.12E\n", av_vels[params.maxIters - 1] * params.reynolds_dim / (1.f / 6.f * (2.f / params.omega - 1.f)));
